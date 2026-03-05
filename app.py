@@ -9,12 +9,8 @@ import yfinance as yf
 from huggingface_hub import InferenceClient
 from pydantic import BaseModel, field_validator, Field
 from typing import List
-from PyPDF2 import PdfReader
 import torch
 import torch.nn as nn
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
 from fpdf import FPDF
 import base64
 import random
@@ -25,85 +21,153 @@ import random
 st.set_page_config(page_title='Nexus Equity Terminal | Capstone', page_icon='⚡', layout='wide', initial_sidebar_state='collapsed')
 
 st.markdown('''<style>
-/* Core Terminal Reset */
-.stApp {background: #050505; color: #d1d5db; font-family: "Inter", -apple-system, sans-serif;}
+/* ─────────────────────────────────────────────
+ * ULTRA-PREMIUM CONSUMER UI V5 (CRED / SUI INSPIRED)
+ * ───────────────────────────────────────────── */
+
+/* Core Typography & Base */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+
+.stApp {
+    background: #030303; 
+    color: #e4e4e7; /* zinc-200 */
+    font-family: "Inter", -apple-system, sans-serif;
+    background-image: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.08) 0%, rgba(3, 3, 3, 1) 40%);
+    background-attachment: fixed;
+}
 header {visibility: hidden;}
 .st-emotion-cache-16txtl3 {padding-top: 0rem;}
 .st-emotion-cache-1jicfl2 {padding: 1rem 1rem;}
 
-/* Persistent Top Navigation Bar (Bloomberg Style) */
+/* Top Nav (Minimalist Premium) */
 .terminal-nav {
-    background: #0a0a0a; border-bottom: 1px solid #1f2937; padding: 12px 24px; 
     display: flex; justify-content: space-between; align-items: center; 
-    position: sticky; top: 0; z-index: 999; margin-bottom: 20px;
+    padding: 16px 32px; margin-bottom: 24px;
+    background: rgba(10, 10, 10, 0.4);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    position: sticky; top: 0; z-index: 999;
 }
-.nav-brand {font-family: "JetBrains Mono", monospace; font-size: 16px; font-weight: 700; color: #fbbf24; letter-spacing: 2px;}
-.nav-status {font-size: 11px; color: #10b981; font-weight: 600; font-family: "JetBrains Mono", monospace; display: flex; align-items: center;}
-.nav-status::before {content: ''; display: inline-block; width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; margin-right: 8px; box-shadow: 0 0 8px #10b981;}
+.nav-brand {
+    font-family: "Inter", sans-serif; font-size: 15px; font-weight: 800; 
+    color: #ffffff; letter-spacing: 1.5px; text-transform: uppercase;
+    background: linear-gradient(90deg, #ffffff, #a1a1aa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nav-status {
+    font-size: 11px; color: #10b981; font-weight: 600; font-family: "Inter", sans-serif; 
+    display: flex; align-items: center; letter-spacing: 1px; text-transform: uppercase;
+    background: rgba(16, 185, 129, 0.1); padding: 4px 12px; border-radius: 20px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.nav-status::before {
+    content: ''; display: inline-block; width: 6px; height: 6px; 
+    background-color: #10b981; border-radius: 50%; margin-right: 8px; box-shadow: 0 0 8px #10b981;
+}
 
-/* Custom Tab Styling (Hide Default Streamlit Tabs, make them look like terminal panes) */
+/* Custom Tabs (Pill Segments) */
 div[data-testid="stTabs"] {background: transparent;}
 div[data-testid="stTabs"] button {
-    background-color: #0f0f0f !important; color: #6b7280 !important; 
-    border: 1px solid #1f2937 !important; border-bottom: none !important; 
-    border-radius: 4px 4px 0 0 !important; padding: 8px 16px !important; 
-    font-family: "JetBrains Mono", monospace; font-size: 12px !important; font-weight: 600 !important; 
-    letter-spacing: 1px; margin-right: 4px;
+    background-color: transparent !important; color: #71717a !important; 
+    border: none !important; border-radius: 100px !important; padding: 10px 20px !important; 
+    font-family: "Inter", sans-serif; font-size: 13px !important; font-weight: 600 !important; 
+    transition: all 0.3s ease; margin-right: 8px;
 }
 div[data-testid="stTabs"] button[aria-selected="true"] {
-    background-color: #1a1a1a !important; color: #e5e7eb !important; 
-    border-top: 2px solid #3b82f6 !important; border-bottom: 1px solid #1a1a1a !important;
+    background-color: rgba(255, 255, 255, 0.08) !important; color: #ffffff !important; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
 }
 
-/* Base Panel Container */
+/* Glassmorphic Panels */
 .t-panel {
-    background: #111111; border: 1px solid #1f2937; border-radius: 6px; 
-    padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); margin-bottom: 16px;
+    background: rgba(15, 15, 15, 0.6); 
+    border: 1px solid rgba(255, 255, 255, 0.05); 
+    border-radius: 24px; padding: 28px; 
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    margin-bottom: 24px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}
+.t-panel:hover {
+    border-color: rgba(255, 255, 255, 0.08);
 }
 .t-panel-header {
-    font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 2px; 
-    margin-bottom: 12px; font-weight: 700; font-family: "JetBrains Mono", monospace;
-    border-bottom: 1px solid #1f2937; padding-bottom: 8px;
+    font-size: 11px; color: #a1a1aa; text-transform: uppercase; letter-spacing: 2.5px; 
+    margin-bottom: 20px; font-weight: 700; font-family: "Inter", sans-serif;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04); padding-bottom: 12px;
 }
 
-/* Metric Ticker Cards (Dense Layout) */
-.metric-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;}
-.m-card {background: #0a0a0a; border: 1px solid #1f2937; border-left: 3px solid #3b82f6; border-radius: 4px; padding: 12px;}
-.m-title {font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px;}
-.m-val {font-size: 24px; font-weight: 700; color: #f3f4f6; font-family: "JetBrains Mono", monospace; margin: 4px 0;}
-.m-sub {font-size: 11px; color: #10b981; display: flex; align-items: center;}
+/* UI Typography Classes */
+.hero-title {
+    font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; color: #ffffff;
+    line-height: 1.1; letter-spacing: -1px; margin-bottom: 16px;
+}
+.hero-subtitle {
+    font-size: 16px; color: #a1a1aa; line-height: 1.6; font-weight: 400; max-width: 600px; margin-bottom: 32px;
+}
+
+/* Glass Metric Cards */
+.metric-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;}
+.m-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; padding: 20px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.m-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); border-color: rgba(255,255,255,0.1); }
+.m-title {font-size: 11px; color: #71717a; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 8px;}
+.m-val {font-size: 32px; font-weight: 800; color: #ffffff; font-family: "Inter", sans-serif; letter-spacing: -1px; line-height: 1;}
+.m-sub {font-size: 12px; color: #10b981; display: flex; align-items: center; margin-top: 12px; font-weight: 500;}
 .m-sub.warn {color: #fbbf24;}
 .m-sub.danger {color: #ef4444;}
-.m-card.bull {border-left-color: #10b981;}
-.m-card.bear {border-left-color: #ef4444;}
+.m-card.bull {border-top: 2px solid #10b981;}
+.m-card.bear {border-top: 2px solid #ef4444;}
 
-/* Insight Pills & Verdicts */
+/* Premium Insight Pills & Verdicts */
 .verdict-box {
-    background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); 
-    border-left: 4px solid #3b82f6; padding: 16px; border-radius: 4px; margin-bottom: 16px;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.05)); 
+    border: 1px solid rgba(59, 130, 246, 0.2); 
+    padding: 24px; border-radius: 16px; margin-bottom: 24px;
+    box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.05);
 }
-.verdict-text {font-size: 15px; color: #e5e7eb; line-height: 1.6; font-weight: 500;}
+.verdict-text {font-size: 18px; color: #ffffff; line-height: 1.6; font-weight: 500; font-family: "Inter", sans-serif;}
 
 .insight-list {list-style: none; padding: 0; margin: 0;}
 .insight-item {
-    font-size: 13px; color: #d1d5db; padding: 8px 12px; margin-bottom: 8px; 
-    background: #1a1a1a; border-left: 2px solid #4b5563; border-radius: 2px;
+    font-size: 14px; color: #d4d4d8; padding: 12px 16px; margin-bottom: 12px; 
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px;
+    display: flex; align-items: flex-start;
 }
-.insight-item::before {content: '>'; color: #6b7280; margin-right: 8px; font-family: monospace;}
+.insight-item::before {
+    content: '✦'; color: #3b82f6; margin-right: 12px; font-size: 14px; margin-top: 2px;
+}
 
-/* Streamlit Widget Overrides */
+/* Streamlit Widget Overrides (Buttons & Inputs) */
 .stButton>button {
-    background: #1d4ed8 !important; color: white !important; border: none !important; 
-    border-radius: 4px !important; font-weight: 600 !important; font-family: "JetBrains Mono" !important; 
-    text-transform: uppercase; letter-spacing: 1px; width: 100%; transition: all 0.2s;
+    background: #ffffff !important; color: #000000 !important; border: none !important; 
+    border-radius: 100px !important; font-weight: 700 !important; font-family: "Inter", sans-serif !important; 
+    letter-spacing: 0.5px; width: 100%; padding: 12px 24px !important; transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(255,255,255,0.1); text-transform: none !important; font-size: 14px !important;
 }
-.stButton>button:hover {background: #2563eb !important; box-shadow: 0 0 10px rgba(37,99,235,0.4) !important;}
+.stButton>button:hover {background: #f4f4f5 !important; box-shadow: 0 8px 24px rgba(255,255,255,0.2) !important; transform: translateY(-1px);}
 
-/* File Uploader and Inputs */
-.stFileUploader>div>div, .stTextInput>div>div>input, .stSelectbox>div>div>div {
-    background: #0a0a0a !important; color: #e5e7eb !important; border: 1px solid #374151 !important; border-radius: 4px !important;
+.stTextInput>div>div>input, .stSelectbox>div>div>div {
+    background: rgba(0,0,0,0.5) !important; color: #ffffff !important; 
+    border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 12px !important;
+    padding: 12px 16px !important; font-size: 15px !important; font-family: "Inter", sans-serif !important;
 }
-.stTextInput>div>div>input:focus, .stSelectbox>div>div>div:focus {border-color: #3b82f6 !important; box-shadow: none !important;}
+.stTextInput>div>div>input:focus, .stSelectbox>div>div>div:focus {
+    border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,0.2) !important;
+}
+
+/* Feature Cards (For Tab 1) */
+.feature-card {
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); 
+    border-radius: 20px; padding: 24px; text-align: center;
+    transition: all 0.3s ease; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.feature-card:hover {background: rgba(255,255,255,0.04); transform: translateY(-4px);}
+.f-icon {font-size: 32px; margin-bottom: 16px;}
+.f-title {font-size: 14px; font-weight: 600; color: #ffffff; letter-spacing: 1px; margin-bottom: 8px;}
+.f-desc {font-size: 13px; color: #71717a; line-height: 1.5;}
 </style>''', unsafe_allow_html=True)
 
 st.markdown('''
@@ -196,7 +260,6 @@ init_db()
 if 'briefs' not in st.session_state: st.session_state.briefs={}
 if 'contexts' not in st.session_state: st.session_state.contexts={}
 if 'macro_db' not in st.session_state: st.session_state.macro_db={}
-if 'source_pages' not in st.session_state: st.session_state.source_pages={}
 
 # Load from SQLite on first run (structured data pipeline)
 if not st.session_state.macro_db:
@@ -254,93 +317,7 @@ class AnalystBrief(BaseModel):
 # ─────────────────────────────────────────────
 # BACKEND: INGESTION & LLM
 # ─────────────────────────────────────────────
-@st.cache_resource(show_spinner=False)
-def load_vs():
-    return HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 
-def ingest_pdf(uploaded_files, company_name, prog_func):
-    emb = load_vs()
-    all_chunks = []
-    total_files = len(uploaded_files)
-    
-    prog_func(0.1, f"Initializing Deep Scan on {total_files} documents...")
-    
-    for f_idx, file in enumerate(uploaded_files):
-        reader = PdfReader(file)
-        total_pages = len(reader.pages)
-        for i, page in enumerate(reader.pages):
-            page_text = page.extract_text() or ""
-            if sum(len(c) for c in all_chunks) > 1500000:
-                prog_func(0.4, f"WARNING: Context limit reached (1.5M chars). Truncating remaining pages.")
-                break
-            all_chunks.append({'text': page_text, 'page': i + 1, 'file': file.name})
-            
-            base_prog = 0.1
-            file_progress = (f_idx / total_files) * 0.3
-            page_progress = (i / total_pages) * (0.3 / total_files)
-            current_prog = base_prog + file_progress + page_progress
-            prog_func(current_prog, f"Extracting File {f_idx+1}/{total_files} | Page {i+1}/{total_pages} ...")
-            
-    prog_func(0.4, "Text chunking (1000 char windows)...")
-    sp = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-    
-    docs = []
-    for chunk in all_chunks:
-        sub_docs = sp.create_documents([chunk['text']], metadatas=[{'company': company_name, 'page': chunk['page'], 'file': chunk['file']}])
-        docs.extend(sub_docs)
-    
-    prog_func(0.5, f"Vectorizing {len(docs)} text chunks into FAISS memory...")
-    return FAISS.from_documents(docs, emb)
-
-def retr(vs, co, q, k=5):
-    res = vs.similarity_search(q, k=k)
-    pages = sorted(set(doc.metadata.get('page', '?') for doc in res))
-    return '\n\n'.join([x.page_content for x in res]), pages
-
-def prompt(cn, sector, ctx):
-    p = 'You are a Senior Equity Research Analyst for a top-tier investment bank.\n'
-    p += f'Analyze {cn}. Return ONLY valid JSON matching this schema exactly.\n'
-    p += '{\n'
-    p += f'  "company_name":"{cn}","fiscal_year":"Latest","sector":"{sector}",\n'
-    p += '  "business_model":"Detailed 3 sentence breakdown",\n'
-    p += '  "key_segments":["segment 1","segment 2","segment 3"],\n'
-    p += '  "financial_highlights":["Detail 1","Detail 2"],\n'
-    p += '  "top_risks":[{"risk":"Name","description":"Detail","severity":"High","likelihood":4,"impact":5}],\n'
-    p += '  "strategic_priorities":[{"priority":"Name","detail":"Detail","time_horizon":"Short-term"}],\n'
-    p += '  "competitive_scores":{"innovation":8,"market_position":9,"financial_health":8,"risk_profile":5},\n'
-    p += '  "management_tone":"Optimistic","management_tone_score":7,\n'
-    p += '  "bull_case":"2 sentences","bear_case":"2 sentences",\n'
-    p += '  "analyst_verdict":"1 sentence decisive verdict",\n'
-    p += '  "wacc": 0.08, "growth_rate": 0.03, "fcf_base": 5000\n'
-    p += '}\n'
-    p += f'=== CONTEXT ===\n{ctx[:4000]}\n'
-    return p
-
-def run_llm(co, sector, vs, prog):
-    prog(0.6, f'Retrieving top-k semantic context for {co}...')
-    ctx, source_pages = retr(vs, co, 'business model revenue segments strategy risks financial performance metrics')
-    prog(0.7, 'Synthesizing with Llama-3.1-8B...')
-    
-    cl = InferenceClient(provider='novita', api_key=TOKEN)
-    last_err = ""
-    for attempt in range(3):
-        try:
-            r = cl.chat.completions.create(model='meta-llama/Llama-3.1-8B-Instruct', messages=[{'role':'user','content':prompt(co, sector, ctx)}], max_tokens=2500, temperature=0.1)
-            raw = r.choices[0].message.content.strip()
-            raw = re.sub(r'^```json\s*', '', raw); raw = re.sub(r'^```\s*', '', raw); raw = re.sub(r'\s*```$', '', raw)
-            m = re.search(r'\{.*\}', raw, re.DOTALL)
-            if not m:
-                raise ValueError("No valid JSON block detected from LLM.")
-            b = AnalystBrief(**json.loads(m.group()))
-            prog(0.9, 'Validated Schema.')
-            return b, ctx, source_pages
-        except Exception as e:
-            last_err = str(e)
-            prog(0.7, f'Synthesizing... Retry {attempt+1}/3 failed ({last_err[:30]}...)')
-            time.sleep(2)
-            
-    st.error(f"LLM Generation Failed consistently. Last Error: {last_err}")
-    return None, None, []
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_company_context(ticker):
@@ -846,91 +823,86 @@ tabs = st.tabs(["🔍 Search & Analyze", "📊 AI Analysis", "🌍 Market Compar
 # --- TAB 1: SEARCH & ANALYZE ---
 with tabs[0]:
     st.markdown('''
-    <div class="t-panel" style="border-left: 3px solid #3b82f6;">
-        <div class="t-panel-header" style="color: #3b82f6; border-bottom-color: #1e3a5f;">NEXUS EQUITY TERMINAL — INSTANT COMPANY ANALYSIS</div>
-        <div style="color: #d1d5db; font-size: 14px; line-height: 1.8;">
-            Search any publicly traded company by ticker symbol. The terminal pulls <b>live financial data</b> from Yahoo Finance, feeds it to <b>Llama-3.1-8B</b>, and generates a full structured analysis — including valuation, risk scoring, competitive profiling, and GRU price signals.<br>
-            <span style="color: #9ca3af; font-size: 12px; margin-top: 4px; display: inline-block;"><b>No uploads required.</b> Just type a ticker and hit Analyze.</span><br><br>
-            <div style="display: flex; gap: 16px; flex-wrap: wrap;">
-                <div style="flex:1; min-width: 140px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size: 28px;">①</div>
-                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>SEARCH</b><br>Enter any stock ticker below</div>
-                </div>
-                <div style="flex:1; min-width: 140px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size: 28px;">②</div>
-                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>ANALYZE</b><br>AI pulls live data & generates insights</div>
-                </div>
-                <div style="flex:1; min-width: 140px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size: 28px;">③</div>
-                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>EXPLORE</b><br>View AI Analysis, Valuation & GRU Signals</div>
-                </div>
+    <div style="padding: 60px 20px; text-align: center;">
+        <div class="hero-title">Nexus AI Terminal</div>
+        <div class="hero-subtitle" style="margin: 0 auto 40px auto;">
+            Professional-grade equity research powered by live market data and Llama-3.1-8B. 
+            Enter any public ticker to generate an instant, comprehensive institutional analysis.
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto 60px auto;">
+            <div class="feature-card">
+                <div class="f-icon">🔍</div>
+                <div class="f-title">SEARCH</div>
+                <div class="f-desc">Enter any major ticker (AAPL, NVDA, GOOGL)</div>
+            </div>
+            <div class="feature-card">
+                <div class="f-icon">⚡</div>
+                <div class="f-title">ANALYZE</div>
+                <div class="f-desc">Live financial data is instantly processed via LLM</div>
+            </div>
+            <div class="feature-card">
+                <div class="f-icon">📈</div>
+                <div class="f-title">FORECAST</div>
+                <div class="f-desc">Generate DCF valuations and GRU price signals</div>
             </div>
         </div>
     </div>
     ''', unsafe_allow_html=True)
 
-    with st.expander("⚙️ UNDER THE HOOD (TECHNICAL ARCHITECTURE)"):
-        st.markdown('''
-        <div style="font-size: 13px; color: #9ca3af; line-height: 1.6;">
-            <b>Frontend:</b> Python + Streamlit with custom HTML/CSS overlays.<br>
-            <b>Live Data Pipeline:</b> On search, the terminal pulls real-time financials via <code>yfinance</code> — including income statements, balance sheets, cash flows, key ratios, and analyst consensus. This structured data replaces traditional PDF ingestion for instant results.<br>
-            <b>Intelligence Layer:</b> The live financial context is passed to <code>Llama-3.1-8B-Instruct</code> via HuggingFace. Model output is strictly constrained to a <code>Pydantic</code> JSON schema ensuring standardized scoring and extraction.<br>
-            <b>Deep Learning Signals:</b> A <code>PyTorch GRU</code> neural network is trained on 1 year of daily price data to generate 10-day price forecasts with Buy/Sell/Hold signals.<br>
-            <b>Advanced Mode:</b> You can also upload SEC 10-K or Annual Report PDFs for deeper RAG-based analysis using FAISS vector retrieval.<br>
-            <b>Persistence:</b> Generated profiles are saved to <code>SQLite (nexus.db)</code> for cross-company comparison and correlation analysis.
-        </div>
-        ''', unsafe_allow_html=True)
-        
-    st.markdown('''
-    <div style="margin-top: 10px; margin-bottom: 20px; font-size: 11px; color: #6b7280; text-align: center; border: 1px dashed #374151; padding: 10px; border-radius: 4px;">
-        <b>⚠️ PROFESSIONAL DISCLAIMER:</b> This demonstrator tool assists with the exploratory analysis of publicly traded companies using Generative AI and live market data. Outputs are probabilistic, may contain factual errors (hallucinations), and must be independently verified. Not investment advice.
-    </div>
-    ''', unsafe_allow_html=True)
-    
     # DEMO MODE — One-Click Preloaded Data
     if not st.session_state.briefs:
         demo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'demo_profiles.json')
         if os.path.exists(demo_path):
             st.markdown('''
-            <div style="background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(16,185,129,0.08)); border: 1px solid #1f2937; border-radius: 8px; padding: 20px; margin-bottom: 20px; text-align: center;">
-                <div style="font-size: 14px; color: #e5e7eb; font-weight: 600; margin-bottom: 6px;">🎯 DEMO MODE — No API Key Required</div>
-                <div style="font-size: 12px; color: #9ca3af;">Load pre-analyzed profiles for <b>Apple (AAPL)</b>, <b>Microsoft (MSFT)</b>, and <b>Tesla (TSLA)</b> to explore the full terminal instantly.</div>
-            </div>
+            <div style="max-width: 600px; margin: 0 auto 40px auto; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2); border-radius: 100px; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="font-size: 14px; color: #e5e7eb; font-weight: 500;">
+                    <span style="color:#3b82f6; margin-right:8px;">🎯</span> 
+                    <b>First time?</b> Load our pre-analyzed demo dataset.
+                </div>
             ''', unsafe_allow_html=True)
-            if st.button("🎯 Load Demo Data (AAPL + MSFT + TSLA)", use_container_width=True, type="primary"):
-                with open(demo_path, 'r') as f:
-                    demo_data = json.load(f)
-                for ticker, data in demo_data.items():
-                    brief = AnalystBrief(**{k: v for k, v in data.items() if k != 'sensitivity'})
-                    st.session_state.briefs[ticker] = brief
-                    st.session_state.macro_db[ticker] = data
-                st.success("✅ Demo data loaded! Navigate to Tabs 2–5 to explore the full terminal.")
-                time.sleep(1.5)
-                st.rerun()
+            
+            col_z, col_b, col_z2 = st.columns([1, 2, 1])
+            with col_b:
+                if st.button("Load Demo (AAPL, MSFT, TSLA)", use_container_width=True):
+                    with open(demo_path, 'r') as f:
+                        demo_data = json.load(f)
+                    for ticker, data in demo_data.items():
+                        brief = AnalystBrief(**{k: v for k, v in data.items() if k != 'sensitivity'})
+                        st.session_state.briefs[ticker] = brief
+                        st.session_state.macro_db[ticker] = data
+                    st.success("✅ Demo loaded! View Tabs 2–5.")
+                    time.sleep(1)
+                    st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
     # ── LIVE SEARCH BAR ──
     st.markdown('''
-    <div class="t-panel" style="border-top: 2px solid #10b981;">
-        <div class="t-panel-header" style="color: #10b981; border-bottom-color: #064e3b;">⚡ INSTANT ANALYSIS — SEARCH ANY COMPANY</div>
+    <div style="max-width: 800px; margin: 0 auto;">
+        <div class="t-panel" style="padding: 32px; border-radius: 32px; background: rgba(16, 185, 129, 0.03); border-color: rgba(16, 185, 129, 0.1);">
+            <div style="font-size: 13px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; text-align: center;">
+                Initiate Live Analysis
+            </div>
     ''', unsafe_allow_html=True)
     
     search_col1, search_col2 = st.columns([3, 1])
     with search_col1:
         search_ticker = st.text_input(
             "TICKER", 
-            placeholder="Enter ticker symbol (e.g. AAPL, NVDA, GOOGL, AMZN, JPM)...",
+            placeholder="Enter ticker (e.g. AAPL, NVDA, JPM)...",
             label_visibility="collapsed",
             key="search_ticker_input"
         )
     with search_col2:
-        analyze_btn = st.button("⚡ ANALYZE", use_container_width=True, type="primary", key="analyze_live_btn")
+        analyze_btn = st.button("Analyze", use_container_width=True, type="primary", key="analyze_live_btn")
     
     st.markdown('''
-    <div style="font-size: 11px; color: #6b7280; margin-top: -8px; margin-bottom: 8px;">
-        Works with any ticker on NYSE, NASDAQ, LSE, or major global exchanges. Examples: AAPL, TSLA, NVDA, GOOGL, AMZN, META, JPM, NFLX, MSFT, V
+        </div>
+        <div style="text-align: center; font-size: 12px; color: #71717a; margin-top: 16px;">
+            Supports all major global exchanges in real-time.
+        </div>
     </div>
     ''', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
     
     # Process live search
     if analyze_btn and search_ticker:
@@ -988,69 +960,7 @@ with tabs[0]:
         
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # Advanced: Upload PDFs (collapsed by default)
-    with st.expander("📄 ADVANCED: Upload Custom PDF Reports (Optional)"):
-        st.info("Upload SEC 10-K or Annual Report PDFs for deeper RAG-based analysis using FAISS vector retrieval.")
-        uploaded_files = st.file_uploader("DROP PDFs HERE", type="pdf", accept_multiple_files=True, label_visibility="collapsed")
-        
-        if uploaded_files:
-            st.markdown('<div class="t-panel-header" style="color:#fbbf24;">BULK METADATA MAPPING</div>', unsafe_allow_html=True)
-            st.info("Assign a Ticker Name and Sector to each file, then click EXECUTE PIPELINE.")
-            
-            file_configs = []
-            for i, file in enumerate(uploaded_files):
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.markdown(f'<div style="font-size: 13px; color: #d1d5db; padding-top: 8px; font-family: \'JetBrains Mono\', monospace;">📄 {file.name[:40]}</div>', unsafe_allow_html=True)
-                with col2:
-                    ticker = st.text_input("TICKER", key=f"t_{i}", placeholder="e.g. AAPL", label_visibility="collapsed")
-                with col3:
-                    sector = st.selectbox("SECTOR", ["Technology", "Healthcare", "Financials", "Consumer", "Energy", "Industrials", "Real Estate", "Materials"], key=f"s_{i}", label_visibility="collapsed")
-                file_configs.append({'file': file, 'ticker': ticker.upper().strip() if ticker else "", 'sector': sector})
-                
-            process_btn = st.button("▶ EXECUTE BULK PIPELINE", key="pdf_pipeline_btn")
-            
-            valid_configs = [c for c in file_configs if c['ticker']]
-            
-            if process_btn and valid_configs:
-                groups = {}
-                for c in valid_configs:
-                    t = c['ticker']
-                    if t not in groups:
-                        groups[t] = {'sector': c['sector'], 'files': []}
-                    groups[t]['files'].append(c['file'])
-                    
-                pb = st.progress(0); st_txt = st.empty()
-                total_groups = len(groups)
-                
-                for idx, (ticker_name, data) in enumerate(groups.items()):
-                    group_files = data['files']
-                    group_sector = data['sector']
-                    
-                    def upd(v, m): 
-                        overall_v = (idx + v) / total_groups
-                        pb.progress(min(overall_v, 1.0))
-                        st_txt.markdown(f"<span style='color:#10b981; font-family:monospace;'>`[{overall_v*100:02.0f}%]` <b>[{ticker_name}]</b> {m}</span>", unsafe_allow_html=True)
-                    
-                    upd(0.05, f"Initializing pipeline for {ticker_name}...")
-                    vs = ingest_pdf(group_files, ticker_name, upd)
-                    st.session_state[f"vs_{ticker_name}"] = vs
-                    
-                    b, ctx, src_pages = run_llm(ticker_name, group_sector, vs, upd)
-                    if b:
-                        st.session_state.briefs[ticker_name] = b
-                        st.session_state.source_pages[ticker_name] = src_pages
-                        b_dict = b.model_dump()
-                        st.session_state.macro_db[ticker_name] = b_dict
-                        st.session_state.macro_db[ticker_name]['sensitivity'] = {'rates': -0.2, 'inflation': -0.4, 'supply_chain': -0.1}
-                        persist_to_db(ticker_name, st.session_state.macro_db[ticker_name])
-                        upd(1.0, "PROFILE GENERATED & PERSISTED TO SQL.")
-                    else:
-                        st.error(f"❌ PIPELINE FAILED FOR [{ticker_name}]")
-                        
-                st.success(f"BULK INGESTION COMPLETE FOR {total_groups} ASSETS.")
-                time.sleep(2.5)
-                st_txt.empty(); pb.empty()
+
 
     if st.button("🗑️ Clear Database & Reset Workflow"):
         with sqlite3.connect(DB_PATH) as conn:
@@ -1063,23 +973,16 @@ with tabs[0]:
 with tabs[1]:
     if not st.session_state.briefs:
         st.markdown('''
-        <div class="t-panel" style="text-align:center; padding: 60px 40px; color: #6b7280;">
-            <div style="font-size: 40px; margin-bottom: 16px;">📊</div>
-            <div style="font-size: 16px; color: #9ca3af; font-weight: 600; margin-bottom: 12px;">AI-Generated Analyst Brief</div>
-            <div style="font-size: 13px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
-                Once you upload a company's annual report in Tab 1, this screen will display an auto-generated investment analysis including:<br><br>
-                • <b>Management Conviction Score</b> — how optimistic is the C-suite?<br>
-                • <b>Financial Health & Risk Scores</b> — competitive positioning metrics<br>
-                • <b>Bull & Bear Case Scenarios</b> — best and worst case outlook<br>
-                • <b>Analyst Verdict</b> — a one-sentence recommendation<br><br>
-                <div style="margin-top: 20px; padding: 12px; border: 1px solid #fbbf24; background: rgba(251, 191, 36, 0.1); border-radius: 6px; display: inline-block;">
-                    <b style="color: #fbbf24;">Action Required:</b> Please click the <b>"📄 Upload Reports"</b> tab at the top of the screen to ingest your first report.
-                </div>
+        <div style="text-align:center; padding: 100px 40px; margin-top: 40px; border-radius: 32px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1);">
+            <div style="font-size: 48px; margin-bottom: 24px; opacity: 0.8;">📊</div>
+            <div style="font-size: 20px; color: #ffffff; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.5px;">Awaiting AI Analysis</div>
+            <div style="font-size: 15px; color: #a1a1aa; line-height: 1.6; max-width: 500px; margin: 0 auto;">
+                Return to the <b>Search</b> tab and enter a ticker symbol. The engine will automatically pull live data and generate a comprehensive institutional-grade brief here.
             </div>
         </div>
         ''', unsafe_allow_html=True)
     else:
-        st.markdown('<div style="display:flex; justify-content:flex-end; margin-bottom: 10px;">', unsafe_allow_html=True)
+        st.markdown('<div style="display:flex; justify-content:flex-end; margin-bottom: 24px;">', unsafe_allow_html=True)
         target = st.selectbox("ACTIVE ASSET", list(st.session_state.briefs.keys()), key="t2_target", label_visibility="collapsed")
         st.markdown('</div>', unsafe_allow_html=True)
         b = st.session_state.briefs[target]
@@ -1097,33 +1000,32 @@ with tabs[1]:
                 return str(v)
             
             st.markdown(f'''
-            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
-                <div style="flex:1; min-width:120px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">LIVE PRICE</div>
-                    <div style="font-size:20px; color:#10b981; font-family:'JetBrains Mono',monospace; font-weight:bold;">${fmt_num(live['price'], decimals=2)}</div>
+            <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
+                <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                    <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">LIVE PRICE</div>
+                    <div style="font-size:28px; color:#10b981; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">${fmt_num(live['price'], decimals=2)}</div>
                 </div>
-                <div style="flex:1; min-width:120px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">MARKET CAP</div>
-                    <div style="font-size:20px; color:#e5e7eb; font-family:'JetBrains Mono',monospace; font-weight:bold;">{fmt_num(live['market_cap'], prefix='$')}</div>
+                <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                    <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">MARKET CAP</div>
+                    <div style="font-size:28px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{fmt_num(live['market_cap'], prefix='$')}</div>
                 </div>
-                <div style="flex:1; min-width:120px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">P/E RATIO</div>
-                    <div style="font-size:20px; color:#e5e7eb; font-family:'JetBrains Mono',monospace; font-weight:bold;">{fmt_num(live['pe_ratio'], decimals=1) if live['pe_ratio'] != 'N/A' else 'N/A'}x</div>
+                <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                    <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">P/E RATIO</div>
+                    <div style="font-size:28px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{fmt_num(live['pe_ratio'], decimals=1) if live['pe_ratio'] != 'N/A' else 'N/A'}x</div>
                 </div>
-                <div style="flex:1; min-width:120px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">EV/EBITDA</div>
-                    <div style="font-size:20px; color:#e5e7eb; font-family:'JetBrains Mono',monospace; font-weight:bold;">{fmt_num(live['ev_ebitda'], decimals=1) if live['ev_ebitda'] != 'N/A' else 'N/A'}x</div>
+                <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                    <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">EV/EBITDA</div>
+                    <div style="font-size:28px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{fmt_num(live['ev_ebitda'], decimals=1) if live['ev_ebitda'] != 'N/A' else 'N/A'}x</div>
                 </div>
-                <div style="flex:1; min-width:120px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">52W RANGE</div>
-                    <div style="font-size:14px; color:#9ca3af; font-family:'JetBrains Mono',monospace;">${fmt_num(live['week52_low'], decimals=0)} — ${fmt_num(live['week52_high'], decimals=0)}</div>
+                <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                    <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:12px;">52W RANGE</div>
+                    <div style="font-size:15px; color:#a1a1aa; font-family:'Inter',sans-serif; font-weight:500;">${fmt_num(live['week52_low'], decimals=0)} — ${fmt_num(live['week52_high'], decimals=0)}</div>
                 </div>
-                <div style="flex:1; min-width:120px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">BETA</div>
-                    <div style="font-size:20px; color:#fbbf24; font-family:'JetBrains Mono',monospace; font-weight:bold;">{fmt_num(live['beta'], decimals=2) if live['beta'] != 'N/A' else 'N/A'}</div>
+                <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                    <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">BETA</div>
+                    <div style="font-size:28px; color:#fbbf24; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{fmt_num(live['beta'], decimals=2) if live['beta'] != 'N/A' else 'N/A'}</div>
                 </div>
             </div>
-            <div style="font-size:10px; color:#374151; text-align:right; margin-bottom:12px;">Live data via Yahoo Finance. May be delayed.</div>
             ''', unsafe_allow_html=True)
         
         # ── GRU DEEP LEARNING SIGNAL ──
@@ -1137,32 +1039,39 @@ with tabs[1]:
             arrow = '+' if gru_data['pct_change'] > 0 else ''
             
             st.markdown(f'''
-            <div class="t-panel" style="border-top: 2px solid {sig_color}; margin-bottom: 16px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                    <div class="t-panel-header" style="margin:0; border:none; padding:0;">🧠 GRU SIGNAL // DEEP LEARNING FORECAST</div>
-                    <div style="display:flex; gap:12px; align-items:center;">
-                        <div style="background:{sig_color}20; border:1px solid {sig_color}; border-radius:4px; padding:6px 14px; display:flex; align-items:center; gap:6px;">
-                            <span style="font-size:16px; color:{sig_color}; font-weight:bold;">{sig_icon}</span>
-                            <span style="font-size:13px; color:{sig_color}; font-weight:700; letter-spacing:1px; font-family:'JetBrains Mono',monospace;">{sig}</span>
-                        </div>
+            <div class="t-panel" style="margin-bottom: 24px; position:relative; overflow:hidden;">
+                <!-- Glowing accent line -->
+                <div style="position:absolute; top:0; left:0; right:0; height:4px; background: linear-gradient(90deg, transparent, {sig_color}, transparent);"></div>
+                
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+                    <div>
+                        <div style="font-size:11px; color:#a1a1aa; font-weight:700; letter-spacing:2px; margin-bottom:8px;">DEEP LEARNING FORECAST</div>
+                        <div style="font-size:24px; color:#ffffff; font-weight:800; font-family:'Inter',sans-serif; letter-spacing:-0.5px;">GRU Neural Network</div>
+                    </div>
+                    <div style="display:flex; gap:16px; align-items:center;">
                         <div style="text-align:right;">
-                            <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">CONFIDENCE</div>
-                            <div style="font-size:18px; color:{sig_color}; font-family:'JetBrains Mono',monospace; font-weight:bold;">{gru_data['confidence']}%</div>
+                            <div style="font-size:10px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:4px;">CONFIDENCE</div>
+                            <div style="font-size:20px; color:{sig_color}; font-family:'Inter',sans-serif; font-weight:800;">{gru_data['confidence']}%</div>
+                        </div>
+                        <div style="background:{sig_color}15; border:1px solid {sig_color}40; border-radius:12px; padding:10px 20px; display:flex; align-items:center; gap:8px; box-shadow: 0 0 20px {sig_color}20;">
+                            <span style="font-size:18px; color:{sig_color};">{sig_icon}</span>
+                            <span style="font-size:15px; color:{sig_color}; font-weight:800; letter-spacing:1.5px;">{sig}</span>
                         </div>
                     </div>
                 </div>
-                <div style="display:flex; gap:16px; margin-bottom:12px;">
-                    <div style="flex:1; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:10px; text-align:center;">
-                        <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">CURRENT PRICE</div>
-                        <div style="font-size:18px; color:#e5e7eb; font-family:'JetBrains Mono',monospace; font-weight:bold;">${gru_data['last_price']:,.2f}</div>
+                
+                <div style="display:flex; gap:20px; margin-bottom:12px;">
+                    <div style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px;">
+                        <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">CURRENT PRICE</div>
+                        <div style="font-size:28px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">${gru_data['last_price']:,.2f}</div>
                     </div>
-                    <div style="flex:1; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:10px; text-align:center;">
-                        <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">10-DAY FORECAST</div>
-                        <div style="font-size:18px; color:{sig_color}; font-family:'JetBrains Mono',monospace; font-weight:bold;">${gru_data['pred_price']:,.2f}</div>
+                    <div style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px;">
+                        <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">10-DAY FORECAST</div>
+                        <div style="font-size:28px; color:{sig_color}; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">${gru_data['pred_price']:,.2f}</div>
                     </div>
-                    <div style="flex:1; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:10px; text-align:center;">
-                        <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">PREDICTED MOVE</div>
-                        <div style="font-size:18px; color:{sig_color}; font-family:'JetBrains Mono',monospace; font-weight:bold;">{arrow}{gru_data['pct_change']}%</div>
+                    <div style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px;">
+                        <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">PREDICTED MOVE</div>
+                        <div style="font-size:28px; color:{sig_color}; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{arrow}{gru_data['pct_change']}%</div>
                     </div>
                 </div>
             </div>
@@ -1187,24 +1096,24 @@ with tabs[1]:
         # Dense Metric Grid
         st.markdown('<div class="metric-grid">', unsafe_allow_html=True)
         html = f'''
-        <div class="m-card bull">
+        <div class="m-card bull" style="background:rgba(16,185,129,0.05);">
             <div class="m-title">MGMT CONVICTION</div>
-            <div class="m-val">{b.management_tone_score}<span style="font-size:14px;color:#6b7280">/10</span></div>
+            <div class="m-val">{b.management_tone_score}<span style="font-size:16px;color:#71717a">/10</span></div>
             <div class="m-sub">▲ {b.management_tone} Sentiment</div>
         </div>
         <div class="m-card">
             <div class="m-title">FINANCIAL HEALTH</div>
-            <div class="m-val">{b.competitive_scores.financial_health}<span style="font-size:14px;color:#6b7280">/10</span></div>
+            <div class="m-val">{b.competitive_scores.financial_health}<span style="font-size:16px;color:#71717a">/10</span></div>
             <div class="m-sub">Sector Benchmarked</div>
         </div>
-        <div class="m-card bear">
+        <div class="m-card bear" style="background:rgba(239,68,68,0.05);">
             <div class="m-title">RISK PROFILE</div>
-            <div class="m-val">{b.competitive_scores.risk_profile}<span style="font-size:14px;color:#6b7280">/10</span></div>
+            <div class="m-val">{b.competitive_scores.risk_profile}<span style="font-size:16px;color:#71717a">/10</span></div>
             <div class="m-sub danger">▼ Volatility Active</div>
         </div>
         <div class="m-card">
             <div class="m-title">INNOVATION SCORE</div>
-            <div class="m-val">{b.competitive_scores.innovation}<span style="font-size:14px;color:#6b7280">/10</span></div>
+            <div class="m-val">{b.competitive_scores.innovation}<span style="font-size:16px;color:#71717a">/10</span></div>
             <div class="m-sub">R&D Output Index</div>
         </div>
         '''
@@ -1218,8 +1127,8 @@ with tabs[1]:
                 <div class="verdict-box"><div class="verdict-text">{b.analyst_verdict}</div></div>
             ''', unsafe_allow_html=True)
             
-            st.markdown('<div class="t-panel-header" style="margin-top:20px;">CORE BUSINESS MODEL</div>', unsafe_allow_html=True)
-            st.markdown(f'<div style="color:#d1d5db; font-size:14px; line-height:1.6; margin-bottom: 20px;">{b.business_model}</div>', unsafe_allow_html=True)
+            st.markdown('<div class="t-panel-header" style="margin-top:32px;">CORE BUSINESS MODEL</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="color:#d4d4d8; font-size:15px; line-height:1.7; margin-bottom: 32px; font-weight: 300;">{b.business_model}</div>', unsafe_allow_html=True)
             
             st.markdown('<div class="t-panel-header">FINANCIAL HIGHLIGHTS</div>', unsafe_allow_html=True)
             hls = ''.join([f'<li class="insight-item">{h}</li>' for h in b.financial_highlights])
@@ -1228,28 +1137,18 @@ with tabs[1]:
         
         with c_right:
             st.markdown(f'''
-            <div class="t-panel" style="border-top: 2px solid #10b981;">
-                <div class="t-panel-header" style="color: #10b981; border-bottom-color: #064e3b;">BULL CASE SCENARIO</div>
-                <div style="font-size:13px; color:#d1d5db; line-height:1.5;">{b.bull_case}</div>
+            <div class="t-panel" style="border-top: 4px solid #10b981; background: linear-gradient(180deg, rgba(16,185,129,0.05) 0%, rgba(15,15,15,0.6) 100%);">
+                <div class="t-panel-header" style="color: #10b981; border-bottom:none;">BULL CASE SCENARIO</div>
+                <div style="font-size:14px; color:#d4d4d8; line-height:1.6; font-weight:300;">{b.bull_case}</div>
             </div>
             
-            <div class="t-panel" style="border-top: 2px solid #ef4444;">
-                <div class="t-panel-header" style="color: #ef4444; border-bottom-color: #7f1d1d;">BEAR CASE SCENARIO</div>
-                <div style="font-size:13px; color:#d1d5db; line-height:1.5;">{b.bear_case}</div>
+            <div class="t-panel" style="border-top: 4px solid #ef4444; background: linear-gradient(180deg, rgba(239,68,68,0.05) 0%, rgba(15,15,15,0.6) 100%);">
+                <div class="t-panel-header" style="color: #ef4444; border-bottom:none;">BEAR CASE SCENARIO</div>
+                <div style="font-size:14px; color:#d4d4d8; line-height:1.6; font-weight:300;">{b.bear_case}</div>
             </div>
             ''', unsafe_allow_html=True)
         
-        # Source Citations
-        src_pgs = st.session_state.source_pages.get(target, [])
-        if src_pgs:
-            with st.expander(f"📄 Source Citations — Pages referenced by the AI for {target}"):
-                st.markdown(f'''
-                <div style="font-size: 12px; color: #9ca3af; line-height: 1.8;">
-                    The AI retrieved content from the following PDF pages during analysis:<br>
-                    <b style="color: #3b82f6;">Pages: {', '.join(str(p) for p in src_pgs)}</b><br>
-                    <span style="color: #6b7280;">These pages contained the highest semantic similarity to the financial analysis queries. Citation does not guarantee factual accuracy — always verify against the source document.</span>
-                </div>
-                ''', unsafe_allow_html=True)
+
         
         # PDF Export
         try:

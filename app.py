@@ -897,32 +897,43 @@ tabs = st.tabs(["🔍 Search & Analyze", "📊 AI Analysis", "🌍 Market Compar
 
 # --- TAB 1: SEARCH & ANALYZE ---
 with tabs[0]:
-    st.html('''
-    <div style="padding: 60px 20px; text-align: center;">
-        <div class="hero-title">Nexus AI Terminal</div>
-        <div class="hero-subtitle" style="margin: 0 auto 40px auto;">
-            Professional-grade equity research powered by live market data and Llama-3.1-8B. 
-            Enter any public ticker to generate an instant, comprehensive institutional analysis.
-        </div>
-        
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto 60px auto;">
-            <div class="feature-card">
-                <div class="f-icon">🔍</div>
-                <div class="f-title">SEARCH</div>
-                <div class="f-desc">Enter any major ticker (AAPL, NVDA, GOOGL)</div>
-            </div>
-            <div class="feature-card">
-                <div class="f-icon">⚡</div>
-                <div class="f-title">ANALYZE</div>
-                <div class="f-desc">Live financial data is instantly processed via LLM</div>
-            </div>
-            <div class="feature-card">
-                <div class="f-icon">📈</div>
-                <div class="f-title">FORECAST</div>
-                <div class="f-desc">Generate DCF valuations and GRU price signals</div>
-            </div>
-        </div>
-    </div>
+    # Load cover image as base64 for Streamlit Cloud compatibility
+    _cover_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cover_bg.png')
+    _cover_b64 = ''
+    if os.path.exists(_cover_path):
+        with open(_cover_path, 'rb') as _img_f:
+            _cover_b64 = base64.b64encode(_img_f.read()).decode()
+    
+    _bg_style = f'background-image: url(data:image/png;base64,{_cover_b64}); background-size: cover; background-position: center;' if _cover_b64 else ''
+    
+    st.html(f'''
+<div style="position: relative; {_bg_style} border-radius: 32px; overflow: hidden; margin-bottom: 40px;">
+<div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(3,3,3,0.3) 0%, rgba(3,3,3,0.85) 60%, rgba(3,3,3,1) 100%);"></div>
+<div style="position: relative; z-index: 2; padding: 80px 20px 60px 20px; text-align: center;">
+<div class="hero-title">Nexus AI Terminal</div>
+<div class="hero-subtitle" style="margin: 0 auto 48px auto;">
+Professional-grade equity research powered by live market data and Llama-3.1-8B.<br>
+Enter any public ticker to generate an instant, comprehensive institutional analysis.
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto;">
+<div class="feature-card">
+<div class="f-icon">🔍</div>
+<div class="f-title">SEARCH</div>
+<div class="f-desc">Enter any major ticker (AAPL, NVDA, GOOGL)</div>
+</div>
+<div class="feature-card">
+<div class="f-icon">⚡</div>
+<div class="f-title">ANALYZE</div>
+<div class="f-desc">Live financial data is instantly processed via LLM</div>
+</div>
+<div class="feature-card">
+<div class="f-icon">📈</div>
+<div class="f-title">FORECAST</div>
+<div class="f-desc">Generate DCF valuations and GRU price signals</div>
+</div>
+</div>
+</div>
+</div>
     ''')
 
     # DEMO MODE — One-Click Preloaded Data

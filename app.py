@@ -10,6 +10,8 @@ from huggingface_hub import InferenceClient
 from pydantic import BaseModel, field_validator, Field
 from typing import List
 from PyPDF2 import PdfReader
+import torch
+import torch.nn as nn
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -384,6 +386,170 @@ def fetch_live_data(ticker):
     except Exception:
         return None
 
+# ─────────────────────────────────────────────
+# GRU DEEP LEARNING SIGNAL ENGINE
+# ─────────────────────────────────────────────
+class GRUModel(nn.Module):
+    def __init__(self, input_size=1, hidden_size=32, num_layers=1, output_size=1):
+        super(GRUModel, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
+    
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        out, _ = self.gru(x, h0)
+        out = self.fc(out[:, -1, :])
+        return out
+
+@st.cache_data(ttl=900, show_spinner=False)
+def run_gru_prediction(ticker, lookback=60, forecast_days=10, epochs=50):
+    """Train a GRU on 1 year of daily closes and forecast forward."""
+    try:
+        df = yf.download(ticker, period='1y', interval='1d', progress=False)
+        if df.empty or len(df) < lookback + 20:
+            return None
+        
+        closes = df['Close'].values.flatten().astype(float)
+        
+        # Normalize
+        min_p, max_p = closes.min(), closes.max()
+        price_range = max_p - min_p
+        if price_range == 0:
+            return None
+        scaled = (closes - min_p) / price_range
+        
+        # Build sliding-window sequences
+        X, y = [], []
+        for i in range(lookback, len(scaled)):
+            X.append(scaled[i - lookback:i])
+            y.append(scaled[i])
+        
+        X = torch.FloatTensor(np.array(X)).unsqueeze(-1)  # (N, lookback, 1)
+        y = torch.FloatTensor(np.array(y)).unsqueeze(-1)  # (N, 1)
+        
+        # Train / val split (80/20)
+        split = int(len(X) * 0.8)
+        X_train, y_train = X[:split], y[:split]
+        
+        # Build and train model
+        model = GRUModel(input_size=1, hidden_size=32, num_layers=1, output_size=1)
+        criterion = nn.MSELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        
+        model.train()
+        for epoch in range(epochs):
+            output = model(X_train)
+            loss = criterion(output, y_train)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        
+        # Forecast forward
+        model.eval()
+        with torch.no_grad():
+            last_seq = torch.FloatTensor(scaled[-lookback:]).unsqueeze(0).unsqueeze(-1)
+            predictions_scaled = []
+            current_seq = last_seq.clone()
+            
+            for _ in range(forecast_days):
+                pred = model(current_seq)
+                predictions_scaled.append(pred.item())
+                # Slide window: drop first, append prediction
+                new_val = pred.unsqueeze(0)  # (1, 1, 1)
+                current_seq = torch.cat([current_seq[:, 1:, :], new_val], dim=1)
+        
+        # Denormalize
+        predicted_prices = [p * price_range + min_p for p in predictions_scaled]
+        last_actual = float(closes[-1])
+        pred_final = predicted_prices[-1]
+        
+        # Determine signal
+        pct_change = ((pred_final - last_actual) / last_actual) * 100
+        if pct_change > 1.5:
+            signal = 'BULLISH'
+        elif pct_change < -1.5:
+            signal = 'BEARISH'
+        else:
+            signal = 'NEUTRAL'
+        
+        # Confidence (inverse of normalized loss variance, capped 60-95%)
+        val_pred = model(X[split:])
+        val_loss = criterion(val_pred, y[split:]).item()
+        confidence = max(60, min(95, int((1 - val_loss * 10) * 100)))
+        
+        # Build date index for forecast
+        last_date = df.index[-1]
+        forecast_dates = pd.bdate_range(start=last_date + pd.Timedelta(days=1), periods=forecast_days)
+        
+        return {
+            'hist_dates': df.index[-60:].tolist(),
+            'hist_prices': closes[-60:].tolist(),
+            'forecast_dates': forecast_dates.tolist(),
+            'forecast_prices': predicted_prices,
+            'signal': signal,
+            'confidence': confidence,
+            'pct_change': round(pct_change, 2),
+            'last_price': last_actual,
+            'pred_price': round(pred_final, 2),
+        }
+    except Exception as e:
+        return None
+
+def c_gru_forecast_chart(gru_data):
+    """Build a Plotly chart showing historical prices + GRU forecast."""
+    fig = go.Figure()
+    
+    # Historical prices
+    fig.add_trace(go.Scatter(
+        x=gru_data['hist_dates'], y=gru_data['hist_prices'],
+        mode='lines', name='Actual Price',
+        line=dict(color='#3b82f6', width=2)
+    ))
+    
+    # Forecast line
+    signal_color = '#10b981' if gru_data['signal'] == 'BULLISH' else '#ef4444' if gru_data['signal'] == 'BEARISH' else '#fbbf24'
+    
+    # Connect forecast to last actual price
+    connect_dates = [gru_data['hist_dates'][-1]] + gru_data['forecast_dates']
+    connect_prices = [gru_data['hist_prices'][-1]] + gru_data['forecast_prices']
+    
+    fig.add_trace(go.Scatter(
+        x=connect_dates, y=connect_prices,
+        mode='lines+markers', name=f'GRU Forecast ({gru_data["signal"]})',
+        line=dict(color=signal_color, width=2, dash='dot'),
+        marker=dict(size=4, color=signal_color)
+    ))
+    
+    # Confidence band (±2%)
+    upper = [p * 1.02 for p in gru_data['forecast_prices']]
+    lower = [p * 0.98 for p in gru_data['forecast_prices']]
+    
+    fig.add_trace(go.Scatter(
+        x=gru_data['forecast_dates'] + gru_data['forecast_dates'][::-1],
+        y=upper + lower[::-1],
+        fill='toself', fillcolor=f'rgba({",".join(str(int(signal_color.lstrip("#")[i:i+2], 16)) for i in (0, 2, 4))}, 0.1)',
+        line=dict(color='rgba(0,0,0,0)'), showlegend=False, name='Confidence Band'
+    ))
+    
+    # Vertical divider line
+    fig.add_vline(x=gru_data['hist_dates'][-1], line_dash="dash", line_color="#374151", line_width=1)
+    fig.add_annotation(x=gru_data['hist_dates'][-1], y=max(gru_data['hist_prices']),
+                       text="TODAY", showarrow=False, font=dict(size=10, color='#6b7280'), yshift=15)
+    
+    fig.update_layout(
+        **BASE_CHART,
+        title=dict(text="GRU NEURAL NETWORK PRICE FORECAST", font=dict(color='#e5e7eb', size=14)),
+        height=350,
+        margin=dict(l=0, r=0, t=40, b=0),
+        yaxis=dict(gridcolor='#1f2937', title='Price ($)', titlefont=dict(size=11)),
+        xaxis=dict(gridcolor='#1f2937'),
+        legend=dict(bgcolor='rgba(0,0,0,0)', font=dict(size=10), orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+        hovermode='x unified'
+    )
+    return fig
+
 def _sanitize_text(text):
     """Replace Unicode chars that fpdf/latin-1 can't encode."""
     replacements = {
@@ -747,6 +913,64 @@ with tabs[1]:
             </div>
             <div style="font-size:10px; color:#374151; text-align:right; margin-bottom:12px;">Live data via Yahoo Finance. May be delayed.</div>
             ''', unsafe_allow_html=True)
+        
+        # ── GRU DEEP LEARNING SIGNAL ──
+        with st.spinner('🧠 Training GRU neural network...'):
+            gru_data = run_gru_prediction(target)
+        
+        if gru_data:
+            sig = gru_data['signal']
+            sig_color = '#10b981' if sig == 'BULLISH' else '#ef4444' if sig == 'BEARISH' else '#fbbf24'
+            sig_icon = '▲' if sig == 'BULLISH' else '▼' if sig == 'BEARISH' else '■'
+            arrow = '+' if gru_data['pct_change'] > 0 else ''
+            
+            st.markdown(f'''
+            <div class="t-panel" style="border-top: 2px solid {sig_color}; margin-bottom: 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div class="t-panel-header" style="margin:0; border:none; padding:0;">🧠 GRU SIGNAL // DEEP LEARNING FORECAST</div>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <div style="background:{sig_color}20; border:1px solid {sig_color}; border-radius:4px; padding:6px 14px; display:flex; align-items:center; gap:6px;">
+                            <span style="font-size:16px; color:{sig_color}; font-weight:bold;">{sig_icon}</span>
+                            <span style="font-size:13px; color:{sig_color}; font-weight:700; letter-spacing:1px; font-family:'JetBrains Mono',monospace;">{sig}</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">CONFIDENCE</div>
+                            <div style="font-size:18px; color:{sig_color}; font-family:'JetBrains Mono',monospace; font-weight:bold;">{gru_data['confidence']}%</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:16px; margin-bottom:12px;">
+                    <div style="flex:1; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:10px; text-align:center;">
+                        <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">CURRENT PRICE</div>
+                        <div style="font-size:18px; color:#e5e7eb; font-family:'JetBrains Mono',monospace; font-weight:bold;">${gru_data['last_price']:,.2f}</div>
+                    </div>
+                    <div style="flex:1; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:10px; text-align:center;">
+                        <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">10-DAY FORECAST</div>
+                        <div style="font-size:18px; color:{sig_color}; font-family:'JetBrains Mono',monospace; font-weight:bold;">${gru_data['pred_price']:,.2f}</div>
+                    </div>
+                    <div style="flex:1; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:10px; text-align:center;">
+                        <div style="font-size:10px; color:#6b7280; letter-spacing:0.5px;">PREDICTED MOVE</div>
+                        <div style="font-size:18px; color:{sig_color}; font-family:'JetBrains Mono',monospace; font-weight:bold;">{arrow}{gru_data['pct_change']}%</div>
+                    </div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+            
+            st.plotly_chart(c_gru_forecast_chart(gru_data), use_container_width=True)
+            
+            with st.expander("ℹ️ How the GRU Signal Works"):
+                st.markdown('''
+                <div style="font-size: 12px; color: #9ca3af; line-height: 1.8;">
+                    <b style="color: #3b82f6;">Model Architecture:</b> Gated Recurrent Unit (GRU) — a type of recurrent neural network designed for sequential data. Uses 32 hidden units trained on 60-day sliding windows of historical daily closing prices.<br><br>
+                    <b style="color: #3b82f6;">Training:</b> Fetches 1 year of daily price data via Yahoo Finance. The model is trained for 50 epochs with an 80/20 train/validation split using MSE loss and Adam optimizer.<br><br>
+                    <b style="color: #3b82f6;">Signal Logic:</b><br>
+                    • <span style="color:#10b981;">BULLISH</span>: Predicted 10-day price is >1.5% above current price<br>
+                    • <span style="color:#ef4444;">BEARISH</span>: Predicted 10-day price is >1.5% below current price<br>
+                    • <span style="color:#fbbf24;">NEUTRAL</span>: Predicted change is within ±1.5%<br><br>
+                    <b style="color: #3b82f6;">Confidence Score:</b> Derived from inverse validation loss, capped between 60-95%. Higher scores indicate better model fit on held-out data.<br><br>
+                    <span style="color: #6b7280;">⚠️ This is a demonstrator model for academic purposes. It does not constitute financial advice. Real trading signals require ensemble methods, external features, and rigorous backtesting.</span>
+                </div>
+                ''', unsafe_allow_html=True)
         
         # Dense Metric Grid
         st.markdown('<div class="metric-grid">', unsafe_allow_html=True)

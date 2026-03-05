@@ -897,19 +897,33 @@ tabs = st.tabs(["🔍 Search & Analyze", "📊 AI Analysis", "🌍 Market Compar
 
 # --- TAB 1: SEARCH & ANALYZE ---
 with tabs[0]:
-    # Load cover image as base64 for Streamlit Cloud compatibility
-    _cover_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cover_bg.png')
-    _cover_b64 = ''
-    if os.path.exists(_cover_path):
-        with open(_cover_path, 'rb') as _img_f:
-            _cover_b64 = base64.b64encode(_img_f.read()).decode()
-    
-    _bg_style = f'background-image: url(data:image/png;base64,{_cover_b64}); background-size: cover; background-position: center;' if _cover_b64 else ''
-    
-    st.html(f'''
-<div style="position: relative; {_bg_style} border-radius: 32px; overflow: hidden; margin-bottom: 40px;">
-<div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(3,3,3,0.3) 0%, rgba(3,3,3,0.85) 60%, rgba(3,3,3,1) 100%);"></div>
+    st.html('''
+<style>
+@keyframes orbFloat1 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(80px,-60px) scale(1.1); } 66% { transform: translate(-40px,40px) scale(0.9); } }
+@keyframes orbFloat2 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(-100px,50px) scale(1.2); } 66% { transform: translate(60px,-80px) scale(0.85); } }
+@keyframes orbFloat3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(50px,70px) scale(1.15); } }
+@keyframes gridPulse { 0%,100% { opacity: 0.03; } 50% { opacity: 0.08; } }
+@keyframes particleDrift { 0% { transform: translateY(0) translateX(0); opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(-300px) translateX(50px); opacity: 0; } }
+@keyframes heroPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+</style>
+<div style="position: relative; border-radius: 32px; overflow: hidden; margin-bottom: 40px; min-height: 520px; background: #030303;">
+<!-- Animated Gradient Orbs -->
+<div style="position:absolute; width:400px; height:400px; border-radius:50%; background: radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%); top:10%; left:15%; animation: orbFloat1 12s ease-in-out infinite; filter: blur(60px);"></div>
+<div style="position:absolute; width:350px; height:350px; border-radius:50%; background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%); top:30%; right:10%; animation: orbFloat2 15s ease-in-out infinite; filter: blur(80px);"></div>
+<div style="position:absolute; width:300px; height:300px; border-radius:50%; background: radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%); bottom:10%; left:40%; animation: orbFloat3 18s ease-in-out infinite; filter: blur(70px);"></div>
+<!-- Animated Grid -->
+<div style="position:absolute; inset:0; background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 60px 60px; animation: gridPulse 8s ease-in-out infinite;"></div>
+<!-- Floating Particles -->
+<div style="position:absolute; width:3px; height:3px; border-radius:50%; background:#10b981; top:70%; left:20%; animation: particleDrift 6s linear infinite; box-shadow: 0 0 6px #10b981;"></div>
+<div style="position:absolute; width:2px; height:2px; border-radius:50%; background:#3b82f6; top:80%; left:50%; animation: particleDrift 8s linear 2s infinite; box-shadow: 0 0 6px #3b82f6;"></div>
+<div style="position:absolute; width:3px; height:3px; border-radius:50%; background:#8b5cf6; top:75%; left:75%; animation: particleDrift 7s linear 4s infinite; box-shadow: 0 0 6px #8b5cf6;"></div>
+<div style="position:absolute; width:2px; height:2px; border-radius:50%; background:#10b981; top:85%; left:35%; animation: particleDrift 9s linear 1s infinite; box-shadow: 0 0 4px #10b981;"></div>
+<div style="position:absolute; width:2px; height:2px; border-radius:50%; background:#fbbf24; top:90%; left:60%; animation: particleDrift 7.5s linear 3s infinite; box-shadow: 0 0 4px #fbbf24;"></div>
+<!-- Dark fade overlay -->
+<div style="position:absolute; inset:0; background: linear-gradient(180deg, transparent 0%, rgba(3,3,3,0.4) 70%, rgba(3,3,3,0.95) 100%);"></div>
+<!-- Content -->
 <div style="position: relative; z-index: 2; padding: 80px 20px 60px 20px; text-align: center;">
+<div style="font-size: 11px; color: #10b981; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 24px; animation: heroPulse 3s ease-in-out infinite;">● LIVE SYSTEM</div>
 <div class="hero-title">Nexus AI Terminal</div>
 <div class="hero-subtitle" style="margin: 0 auto 48px auto;">
 Professional-grade equity research powered by live market data and Llama-3.1-8B.<br>

@@ -233,16 +233,15 @@ div[data-baseweb="input"] input::placeholder {
     border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,0.2) !important;
 }
 
-/* Feature Cards (For Tab 1) */
-.feature-card {
-    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); 
-    border-radius: 20px; padding: 24px; text-align: center;
-    transition: all 0.3s ease; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
-}
-.feature-card:hover {background: rgba(255,255,255,0.04); transform: translateY(-4px);}
-.f-icon {font-size: 32px; margin-bottom: 16px;}
-.f-title {font-size: 14px; font-weight: 600; color: #ffffff; letter-spacing: 1px; margin-bottom: 8px;}
-.f-desc {font-size: 13px; color: #71717a; line-height: 1.5;}
+/* Selectbox & Dropdown Full Override */
+div[data-baseweb="select"] { background: rgba(0,0,0,0.5) !important; border-radius: 12px !important; }
+div[data-baseweb="select"] > div { background: transparent !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 12px !important; }
+div[data-baseweb="select"] span { color: #ffffff !important; }
+div[data-baseweb="select"] svg { fill: #ffffff !important; }
+ul[role="listbox"] { background: #0a0a0a !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 12px !important; }
+li[role="option"] { color: #ffffff !important; background: transparent !important; }
+li[role="option"]:hover { background: rgba(255,255,255,0.08) !important; }
+li[role="option"][aria-selected="true"] { background: rgba(16,185,129,0.15) !important; }
 </style>''')
 
 st.html('''
@@ -1103,27 +1102,27 @@ with tabs[1]:
             <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
                 <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
                     <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">LIVE PRICE</div>
-                    <div style="font-size:28px; color:#10b981; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">${fmt_num(live['price'], decimals=2)}</div>
+                    <div style="font-size:20px; color:#10b981; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-0.5px;">${fmt_num(live['price'], decimals=2)}</div>
                 </div>
                 <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
                     <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">MARKET CAP</div>
-                    <div style="font-size:28px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{fmt_num(live['market_cap'], prefix='$')}</div>
+                    <div style="font-size:20px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-0.5px;">{fmt_num(live['market_cap'], prefix='$')}</div>
                 </div>
                 <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
                     <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">P/E RATIO</div>
-                    <div style="font-size:28px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{fmt_num(live['pe_ratio'], decimals=1) if live['pe_ratio'] != 'N/A' else 'N/A'}x</div>
+                    <div style="font-size:20px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-0.5px;">{fmt_num(live['pe_ratio'], decimals=1) if live['pe_ratio'] != 'N/A' else 'N/A'}x</div>
                 </div>
                 <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
                     <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">EV/EBITDA</div>
-                    <div style="font-size:28px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{fmt_num(live['ev_ebitda'], decimals=1) if live['ev_ebitda'] != 'N/A' else 'N/A'}x</div>
+                    <div style="font-size:20px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-0.5px;">{fmt_num(live['ev_ebitda'], decimals=1) if live['ev_ebitda'] != 'N/A' else 'N/A'}x</div>
                 </div>
                 <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
                     <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:12px;">52W RANGE</div>
-                    <div style="font-size:15px; color:#a1a1aa; font-family:'Inter',sans-serif; font-weight:500;">${fmt_num(live['week52_low'], decimals=0)} — ${fmt_num(live['week52_high'], decimals=0)}</div>
+                    <div style="font-size:14px; color:#a1a1aa; font-family:'Inter',sans-serif; font-weight:500;">${fmt_num(live['week52_low'], decimals=0)} — ${fmt_num(live['week52_high'], decimals=0)}</div>
                 </div>
                 <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
                     <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">BETA</div>
-                    <div style="font-size:28px; color:#fbbf24; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{fmt_num(live['beta'], decimals=2) if live['beta'] != 'N/A' else 'N/A'}</div>
+                    <div style="font-size:20px; color:#fbbf24; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-0.5px;">{fmt_num(live['beta'], decimals=2) if live['beta'] != 'N/A' else 'N/A'}</div>
                 </div>
             </div>
             ''')
@@ -1163,15 +1162,15 @@ with tabs[1]:
                 <div style="display:flex; gap:20px; margin-bottom:12px;">
                     <div style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px;">
                         <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">CURRENT PRICE</div>
-                        <div style="font-size:28px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">${gru_data['last_price']:,.2f}</div>
+                        <div style="font-size:20px; color:#ffffff; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">${gru_data['last_price']:,.2f}</div>
                     </div>
                     <div style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px;">
                         <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">10-DAY FORECAST</div>
-                        <div style="font-size:28px; color:{sig_color}; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">${gru_data['pred_price']:,.2f}</div>
+                        <div style="font-size:20px; color:{sig_color}; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">${gru_data['pred_price']:,.2f}</div>
                     </div>
                     <div style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px;">
                         <div style="font-size:11px; color:#71717a; font-weight:600; letter-spacing:1px; margin-bottom:8px;">PREDICTED MOVE</div>
-                        <div style="font-size:28px; color:{sig_color}; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{arrow}{gru_data['pct_change']}%</div>
+                        <div style="font-size:20px; color:{sig_color}; font-family:'Inter',sans-serif; font-weight:800; letter-spacing:-1px;">{arrow}{gru_data['pct_change']}%</div>
                     </div>
                 </div>
             </div>

@@ -108,7 +108,7 @@ div[data-testid="stTabs"] button[aria-selected="true"] {
 
 st.markdown('''
 <div class="terminal-nav">
-    <div class="nav-brand">NEXUS // EQ.ANALYTICS.TERMINAL [V3]</div>
+    <div class="nav-brand">NEXUS // EQ.ANALYTICS.TERMINAL [V4]</div>
     <div class="nav-status">SYSTEM ONLINE</div>
 </div>
 '''  , unsafe_allow_html=True)
@@ -341,6 +341,176 @@ def run_llm(co, sector, vs, prog):
             
     st.error(f"LLM Generation Failed consistently. Last Error: {last_err}")
     return None, None, []
+
+@st.cache_data(ttl=900, show_spinner=False)
+def fetch_company_context(ticker):
+    """Pull comprehensive financial data from yfinance and format as context string."""
+    try:
+        tk = yf.Ticker(ticker)
+        info = tk.info
+        
+        # Basic info
+        name = info.get('longName', ticker)
+        sector = info.get('sector', 'Unknown')
+        industry = info.get('industry', 'Unknown')
+        summary = info.get('longBusinessSummary', 'Not available')[:800]
+        employees = info.get('fullTimeEmployees', 'N/A')
+        country = info.get('country', 'N/A')
+        
+        ctx = f"COMPANY: {name} ({ticker})\n"
+        ctx += f"SECTOR: {sector} | INDUSTRY: {industry}\n"
+        ctx += f"COUNTRY: {country} | EMPLOYEES: {employees}\n\n"
+        ctx += f"BUSINESS DESCRIPTION:\n{summary}\n\n"
+        
+        # Key metrics
+        ctx += "KEY METRICS:\n"
+        metrics = {
+            'Market Cap': info.get('marketCap'),
+            'Revenue': info.get('totalRevenue'),
+            'Net Income': info.get('netIncomeToCommon'),
+            'EBITDA': info.get('ebitda'),
+            'Free Cash Flow': info.get('freeCashflow'),
+            'Operating Cash Flow': info.get('operatingCashflow'),
+            'Total Debt': info.get('totalDebt'),
+            'Total Cash': info.get('totalCash'),
+            'P/E Ratio': info.get('trailingPE'),
+            'Forward P/E': info.get('forwardPE'),
+            'EV/EBITDA': info.get('enterpriseToEbitda'),
+            'Price/Book': info.get('priceToBook'),
+            'Profit Margin': info.get('profitMargins'),
+            'Operating Margin': info.get('operatingMargins'),
+            'ROE': info.get('returnOnEquity'),
+            'ROA': info.get('returnOnAssets'),
+            'Debt/Equity': info.get('debtToEquity'),
+            'Current Ratio': info.get('currentRatio'),
+            'Revenue Growth (YoY)': info.get('revenueGrowth'),
+            'Earnings Growth': info.get('earningsGrowth'),
+            'Dividend Yield': info.get('dividendYield'),
+            'Beta': info.get('beta'),
+            '52-Week High': info.get('fiftyTwoWeekHigh'),
+            '52-Week Low': info.get('fiftyTwoWeekLow'),
+        }
+        for k, v in metrics.items():
+            if v is not None:
+                if isinstance(v, float) and abs(v) < 1:
+                    ctx += f"  {k}: {v:.2%}\n"
+                elif isinstance(v, (int, float)) and abs(v) > 1e6:
+                    ctx += f"  {k}: ${v/1e9:.2f}B\n" if abs(v) >= 1e9 else f"  {k}: ${v/1e6:.1f}M\n"
+                else:
+                    ctx += f"  {k}: {v}\n"
+        
+        # Financials (last 2 years)
+        try:
+            inc = tk.financials
+            if inc is not None and not inc.empty:
+                ctx += "\nINCOME STATEMENT (Last 2 Years):\n"
+                for col in inc.columns[:2]:
+                    yr = col.strftime('%Y') if hasattr(col, 'strftime') else str(col)
+                    ctx += f"  [{yr}]\n"
+                    for row in ['Total Revenue', 'Operating Income', 'Net Income', 'Gross Profit', 'EBITDA']:
+                        if row in inc.index:
+                            val = inc.loc[row, col]
+                            if pd.notna(val):
+                                ctx += f"    {row}: ${val/1e9:.2f}B\n"
+        except: pass
+        
+        # Cash flow highlights
+        try:
+            cf = tk.cashflow
+            if cf is not None and not cf.empty:
+                ctx += "\nCASH FLOW HIGHLIGHTS:\n"
+                for col in cf.columns[:2]:
+                    yr = col.strftime('%Y') if hasattr(col, 'strftime') else str(col)
+                    ctx += f"  [{yr}]\n"
+                    for row in ['Operating Cash Flow', 'Free Cash Flow', 'Capital Expenditure']:
+                        if row in cf.index:
+                            val = cf.loc[row, col]
+                            if pd.notna(val):
+                                ctx += f"    {row}: ${val/1e9:.2f}B\n"
+        except: pass
+        
+        # Analyst targets
+        try:
+            targets = {
+                'Target Mean': info.get('targetMeanPrice'),
+                'Target High': info.get('targetHighPrice'),
+                'Target Low': info.get('targetLowPrice'),
+                'Recommendation': info.get('recommendationKey'),
+                'Number of Analysts': info.get('numberOfAnalystOpinions'),
+            }
+            has_targets = any(v is not None for v in targets.values())
+            if has_targets:
+                ctx += "\nANALYST CONSENSUS:\n"
+                for k, v in targets.items():
+                    if v is not None:
+                        ctx += f"  {k}: {v}\n"
+        except: pass
+        
+        return name, sector, ctx
+    except Exception as e:
+        return None, None, None
+
+def prompt_live(cn, sector, ctx):
+    """Build LLM prompt using live financial data context."""
+    p = 'You are a Senior Equity Research Analyst for a top-tier investment bank.\n'
+    p += f'Analyze {cn} using the live financial data provided. Return ONLY valid JSON matching this schema exactly.\n'
+    p += '{\n'
+    p += f'  "company_name":"{cn}","fiscal_year":"TTM","sector":"{sector}",\n'
+    p += '  "business_model":"Detailed 3 sentence breakdown of how this company generates revenue",\n'
+    p += '  "key_segments":["segment 1","segment 2","segment 3"],\n'
+    p += '  "financial_highlights":["Specific highlight with numbers","Another quantified insight","Third data point"],\n'
+    p += '  "top_risks":[{"risk":"Name","description":"1-2 sentence detail","severity":"High","likelihood":4,"impact":5}],\n'
+    p += '  "strategic_priorities":[{"priority":"Name","detail":"Detail","time_horizon":"Short-term"}],\n'
+    p += '  "competitive_scores":{"innovation":8,"market_position":9,"financial_health":8,"risk_profile":5},\n'
+    p += '  "management_tone":"Optimistic","management_tone_score":7,\n'
+    p += '  "bull_case":"2 sentences with specific catalysts","bear_case":"2 sentences with specific risks",\n'
+    p += '  "analyst_verdict":"1 sentence decisive verdict with price target reasoning",\n'
+    p += '  "wacc": 0.08, "growth_rate": 0.03, "fcf_base": 5000\n'
+    p += '}\n'
+    p += 'IMPORTANT: fcf_base must be the ACTUAL Free Cash Flow in MILLIONS USD from the data. Do NOT default to 5000.\n'
+    p += 'IMPORTANT: wacc and growth_rate must reflect THIS specific company, not generic defaults.\n'
+    p += 'IMPORTANT: All scores (1-10) and financial_highlights must use REAL numbers from the data below.\n'
+    p += f'=== LIVE FINANCIAL DATA ===\n{ctx[:5000]}\n'
+    return p
+
+def run_llm_live(ticker, prog):
+    """End-to-end pipeline: yfinance → LLM → AnalystBrief. No PDF needed."""
+    prog(0.1, f'Fetching live financial data for {ticker}...')
+    result = fetch_company_context(ticker)
+    if result is None or result[0] is None:
+        st.error(f"Could not fetch data for ticker '{ticker}'. Please check the ticker symbol.")
+        return None, None
+    
+    name, sector, ctx = result
+    prog(0.3, f'Retrieved {len(ctx)} chars of financial context for {name}...')
+    prog(0.5, 'Synthesizing with Llama-3.1-8B...')
+    
+    cl = InferenceClient(provider='novita', api_key=TOKEN)
+    last_err = ""
+    for attempt in range(3):
+        try:
+            r = cl.chat.completions.create(
+                model='meta-llama/Llama-3.1-8B-Instruct',
+                messages=[{'role': 'user', 'content': prompt_live(name, sector, ctx)}],
+                max_tokens=2500, temperature=0.1
+            )
+            raw = r.choices[0].message.content.strip()
+            raw = re.sub(r'^```json\s*', '', raw)
+            raw = re.sub(r'^```\s*', '', raw)
+            raw = re.sub(r'\s*```$', '', raw)
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if not m:
+                raise ValueError("No valid JSON block detected from LLM.")
+            b = AnalystBrief(**json.loads(m.group()))
+            prog(0.9, 'Validated Schema ✓')
+            return b, sector
+        except Exception as e:
+            last_err = str(e)
+            prog(0.5, f'Retry {attempt+1}/3 ({last_err[:40]}...)')
+            time.sleep(2)
+    
+    st.error(f"LLM Generation Failed. Last Error: {last_err}")
+    return None, None
 
 def simulate_dcf(fcf, wacc, g, years=5):
     vals, pv = [], 0
@@ -671,33 +841,28 @@ def c_comparison_bars(db):
 # ─────────────────────────────────────────────
 # FRONTEND LAYOUT
 # ─────────────────────────────────────────────
-tabs = st.tabs(["📄 Upload Reports", "📊 AI Analysis", "🌍 Market Comparison", "💰 Valuation Model", "🏆 Industry Ranking"])
+tabs = st.tabs(["🔍 Search & Analyze", "📊 AI Analysis", "🌍 Market Comparison", "💰 Valuation Model", "🏆 Industry Ranking"])
 
-# --- TAB 1: INGESTION ---
+# --- TAB 1: SEARCH & ANALYZE ---
 with tabs[0]:
-    # Welcome / How It Works Panel
     st.markdown('''
     <div class="t-panel" style="border-left: 3px solid #3b82f6;">
-        <div class="t-panel-header" style="color: #3b82f6; border-bottom-color: #1e3a5f;">WELCOME — HOW THIS TOOL WORKS</div>
+        <div class="t-panel-header" style="color: #3b82f6; border-bottom-color: #1e3a5f;">NEXUS EQUITY TERMINAL — INSTANT COMPANY ANALYSIS</div>
         <div style="color: #d1d5db; font-size: 14px; line-height: 1.8;">
-            This tool uses a <b>Retrieval-Augmented Generation (RAG) architecture</b> to ingest unstructured financial filings and automatically generate structured, professional-style investment analysis.<br>
-            <span style="color: #9ca3af; font-size: 12px; margin-top: 4px; display: inline-block;"><b>Why it matters:</b> This accelerates the fundamental analyst's workflow, ensures consistent metric extraction across companies, and provides quantitative baselines for cross-industry comparison and valuation modeling.</span><br><br>
+            Search any publicly traded company by ticker symbol. The terminal pulls <b>live financial data</b> from Yahoo Finance, feeds it to <b>Llama-3.1-8B</b>, and generates a full structured analysis — including valuation, risk scoring, competitive profiling, and GRU price signals.<br>
+            <span style="color: #9ca3af; font-size: 12px; margin-top: 4px; display: inline-block;"><b>No uploads required.</b> Just type a ticker and hit Analyze.</span><br><br>
             <div style="display: flex; gap: 16px; flex-wrap: wrap;">
                 <div style="flex:1; min-width: 140px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
                     <div style="font-size: 28px;">①</div>
-                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>UPLOAD</b><br>Drop company PDF reports below</div>
+                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>SEARCH</b><br>Enter any stock ticker below</div>
                 </div>
                 <div style="flex:1; min-width: 140px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
                     <div style="font-size: 28px;">②</div>
-                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>TAG</b><br>Name each file with a ticker & industry</div>
+                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>ANALYZE</b><br>AI pulls live data & generates insights</div>
                 </div>
                 <div style="flex:1; min-width: 140px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
                     <div style="font-size: 28px;">③</div>
-                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>ANALYZE</b><br>AI reads the reports & generates insights</div>
-                </div>
-                <div style="flex:1; min-width: 140px; background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:12px; text-align:center;">
-                    <div style="font-size: 28px;">④</div>
-                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>EXPLORE</b><br>Switch to the other tabs to view results</div>
+                    <div style="font-size: 11px; color: #9ca3af; margin-top: 6px;"><b>EXPLORE</b><br>View AI Analysis, Valuation & GRU Signals</div>
                 </div>
             </div>
         </div>
@@ -708,15 +873,17 @@ with tabs[0]:
         st.markdown('''
         <div style="font-size: 13px; color: #9ca3af; line-height: 1.6;">
             <b>Frontend:</b> Python + Streamlit with custom HTML/CSS overlays.<br>
-            <b>Data Pipeline:</b> Unstructured PDFs are parsed via <code>PyPDF2</code>, chunked using <code>RecursiveCharacterTextSplitter</code>, and embedded into a high-density <code>FAISS</code> vector space using HuggingFace <code>all-MiniLM-L6-v2</code>.<br>
-            <b>Intelligence Layer:</b> Queries are augmented with vector retrieval and passed to <code>Llama-3.1-8B-Instruct</code>. To prevent hallucination, the model output is strictly constrained to a <code>Pydantic</code> JSON schema ensuring standardized scoring and extraction.<br>
-            <b>Persistence:</b> Generated structured profiles are saved to a local <code>SQLite (nexus.db)</code> relational database, serving as the structured foundation for the classical statistical methods (Monte Carlo & Pearson Correlation) used in Tabs 3 & 4.
+            <b>Live Data Pipeline:</b> On search, the terminal pulls real-time financials via <code>yfinance</code> — including income statements, balance sheets, cash flows, key ratios, and analyst consensus. This structured data replaces traditional PDF ingestion for instant results.<br>
+            <b>Intelligence Layer:</b> The live financial context is passed to <code>Llama-3.1-8B-Instruct</code> via HuggingFace. Model output is strictly constrained to a <code>Pydantic</code> JSON schema ensuring standardized scoring and extraction.<br>
+            <b>Deep Learning Signals:</b> A <code>PyTorch GRU</code> neural network is trained on 1 year of daily price data to generate 10-day price forecasts with Buy/Sell/Hold signals.<br>
+            <b>Advanced Mode:</b> You can also upload SEC 10-K or Annual Report PDFs for deeper RAG-based analysis using FAISS vector retrieval.<br>
+            <b>Persistence:</b> Generated profiles are saved to <code>SQLite (nexus.db)</code> for cross-company comparison and correlation analysis.
         </div>
         ''', unsafe_allow_html=True)
         
     st.markdown('''
     <div style="margin-top: 10px; margin-bottom: 20px; font-size: 11px; color: #6b7280; text-align: center; border: 1px dashed #374151; padding: 10px; border-radius: 4px;">
-        <b>⚠️ PROFESSIONAL DISCLAIMER:</b> This demonstrator tool assists with the exploratory analysis of corporate filings using Generative AI. Outputs are probabilistic, may contain factual errors (hallucinations), and must be independently verified against source reports. The intrinsic value models and market simulations provided are for academic/illustrative purposes only and do not constitute professional investment advice.
+        <b>⚠️ PROFESSIONAL DISCLAIMER:</b> This demonstrator tool assists with the exploratory analysis of publicly traded companies using Generative AI and live market data. Outputs are probabilistic, may contain factual errors (hallucinations), and must be independently verified. Not investment advice.
     </div>
     ''', unsafe_allow_html=True)
     
@@ -741,60 +908,118 @@ with tabs[0]:
                 time.sleep(1.5)
                 st.rerun()
 
-    st.markdown(f'''
-    <div class="t-panel">
-        <div class="t-panel-header">STEP 1: DOCUMENT BATCH UPLOAD</div>
+    # ── LIVE SEARCH BAR ──
+    st.markdown('''
+    <div class="t-panel" style="border-top: 2px solid #10b981;">
+        <div class="t-panel-header" style="color: #10b981; border-bottom-color: #064e3b;">⚡ INSTANT ANALYSIS — SEARCH ANY COMPANY</div>
     ''', unsafe_allow_html=True)
-    st.info("Upload SEC 10-K or Annual Report PDFs. You can upload files for multiple different companies. In Step 2, you will map each file to its respective Asset Ticker.")
-    uploaded_files = st.file_uploader("DROP PDFs HERE", type="pdf", accept_multiple_files=True, label_visibility="collapsed")
+    
+    search_col1, search_col2 = st.columns([3, 1])
+    with search_col1:
+        search_ticker = st.text_input(
+            "TICKER", 
+            placeholder="Enter ticker symbol (e.g. AAPL, NVDA, GOOGL, AMZN, JPM)...",
+            label_visibility="collapsed",
+            key="search_ticker_input"
+        )
+    with search_col2:
+        analyze_btn = st.button("⚡ ANALYZE", use_container_width=True, type="primary", key="analyze_live_btn")
+    
+    st.markdown('''
+    <div style="font-size: 11px; color: #6b7280; margin-top: -8px; margin-bottom: 8px;">
+        Works with any ticker on NYSE, NASDAQ, LSE, or major global exchanges. Examples: AAPL, TSLA, NVDA, GOOGL, AMZN, META, JPM, NFLX, MSFT, V
+    </div>
+    ''', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
-    if uploaded_files:
-        st.markdown('<div class="t-panel" style="border-top: 2px solid #fbbf24;">', unsafe_allow_html=True)
-        st.markdown('<div class="t-panel-header" style="color:#fbbf24;">STEP 2: BULK METADATA MAPPING</div>', unsafe_allow_html=True)
-        st.info("Files detected! Please assign a Ticker Name and Sector to each file. When finished, click the large 'EXECUTE PIPELINE' button below to start the analysis.")
+    # Process live search
+    if analyze_btn and search_ticker:
+        ticker_clean = search_ticker.upper().strip()
         
+        with st.container():
+            st.markdown(f'''
+            <div class="t-panel">
+                <div class="t-panel-header">PIPELINE EXECUTION LOG — {ticker_clean}</div>
+            ''', unsafe_allow_html=True)
+            
+            pb = st.progress(0)
+            st_txt = st.empty()
+            
+            def upd_live(v, m):
+                pb.progress(min(v, 1.0))
+                st_txt.markdown(f"<span style='color:#10b981; font-family:monospace;'>`[{v*100:02.0f}%]` <b>[{ticker_clean}]</b> {m}</span>", unsafe_allow_html=True)
+            
+            result = run_llm_live(ticker_clean, upd_live)
+            
+            if result and result[0] is not None:
+                b, sector = result
+                st.session_state.briefs[ticker_clean] = b
+                b_dict = b.model_dump()
+                st.session_state.macro_db[ticker_clean] = b_dict
+                st.session_state.macro_db[ticker_clean]['sensitivity'] = {'rates': -0.2, 'inflation': -0.4, 'supply_chain': -0.1}
+                persist_to_db(ticker_clean, st.session_state.macro_db[ticker_clean])
+                
+                upd_live(1.0, "PROFILE GENERATED & PERSISTED ✓")
+                st.success(f"✅ **{b.company_name}** analyzed successfully! Navigate to **Tab 2 (AI Analysis)** to view the full report.")
+                time.sleep(2)
+                pb.empty()
+                st_txt.empty()
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Show currently loaded companies
+    if st.session_state.briefs:
         st.markdown('''
-        <div style="display:flex; font-size: 10px; color:#6b7280; margin-bottom: 8px;">
-            <div style="flex:2;">DOCUMENT FILENAME</div>
-            <div style="flex:1;">TICKER (Required)</div>
-            <div style="flex:1;">SECTOR</div>
-        </div>
+        <div class="t-panel" style="border-left: 3px solid #fbbf24;">
+            <div class="t-panel-header" style="color: #fbbf24;">LOADED COMPANIES</div>
         ''', unsafe_allow_html=True)
         
-        file_configs = []
-        for i, file in enumerate(uploaded_files):
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                st.markdown(f'<div style="font-size: 13px; color: #d1d5db; padding-top: 8px; font-family: \'JetBrains Mono\', monospace;">📄 {file.name[:40]}</div>', unsafe_allow_html=True)
-            with col2:
-                ticker = st.text_input("TICKER", key=f"t_{i}", placeholder="e.g. AAPL", label_visibility="collapsed")
-            with col3:
-                sector = st.selectbox("SECTOR", ["Technology", "Healthcare", "Financials", "Consumer", "Energy", "Industrials", "Real Estate", "Materials"], key=f"s_{i}", label_visibility="collapsed")
-            file_configs.append({'file': file, 'ticker': ticker.upper().strip() if ticker else "", 'sector': sector})
-            
-        st.markdown("<hr style='border-color: #1f2937; margin: 20px 0;'>", unsafe_allow_html=True)
-        process_btn = st.button("▶ EXECUTE BULK PIPELINE")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        valid_configs = [c for c in file_configs if c['ticker']]
-        
-        if process_btn and valid_configs:
-            # Group files by ticker
-            groups = {}
-            for c in valid_configs:
-                t = c['ticker']
-                if t not in groups:
-                    groups[t] = {'sector': c['sector'], 'files': []}
-                groups[t]['files'].append(c['file'])
-                # If sectors differ for the same ticker, the first one assigned is used.
-                
-            with st.container():
+        loaded_tickers = list(st.session_state.briefs.keys())
+        cols = st.columns(min(len(loaded_tickers), 6))
+        for i, tk in enumerate(loaded_tickers):
+            with cols[i % 6]:
+                b = st.session_state.briefs[tk]
                 st.markdown(f'''
-                <div class="t-panel">
-                    <div class="t-panel-header">PIPELINE EXECUTION LOG (SEQUENTIAL BATCH)</div>
+                <div style="background:#0a0a0a; border:1px solid #1f2937; border-radius:6px; padding:10px; text-align:center; margin-bottom:8px;">
+                    <div style="font-size:16px; font-weight:bold; color:#e5e7eb; font-family:'JetBrains Mono',monospace;">{tk}</div>
+                    <div style="font-size:11px; color:#6b7280;">{b.sector}</div>
+                </div>
                 ''', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Advanced: Upload PDFs (collapsed by default)
+    with st.expander("📄 ADVANCED: Upload Custom PDF Reports (Optional)"):
+        st.info("Upload SEC 10-K or Annual Report PDFs for deeper RAG-based analysis using FAISS vector retrieval.")
+        uploaded_files = st.file_uploader("DROP PDFs HERE", type="pdf", accept_multiple_files=True, label_visibility="collapsed")
+        
+        if uploaded_files:
+            st.markdown('<div class="t-panel-header" style="color:#fbbf24;">BULK METADATA MAPPING</div>', unsafe_allow_html=True)
+            st.info("Assign a Ticker Name and Sector to each file, then click EXECUTE PIPELINE.")
+            
+            file_configs = []
+            for i, file in enumerate(uploaded_files):
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.markdown(f'<div style="font-size: 13px; color: #d1d5db; padding-top: 8px; font-family: \'JetBrains Mono\', monospace;">📄 {file.name[:40]}</div>', unsafe_allow_html=True)
+                with col2:
+                    ticker = st.text_input("TICKER", key=f"t_{i}", placeholder="e.g. AAPL", label_visibility="collapsed")
+                with col3:
+                    sector = st.selectbox("SECTOR", ["Technology", "Healthcare", "Financials", "Consumer", "Energy", "Industrials", "Real Estate", "Materials"], key=f"s_{i}", label_visibility="collapsed")
+                file_configs.append({'file': file, 'ticker': ticker.upper().strip() if ticker else "", 'sector': sector})
                 
+            process_btn = st.button("▶ EXECUTE BULK PIPELINE", key="pdf_pipeline_btn")
+            
+            valid_configs = [c for c in file_configs if c['ticker']]
+            
+            if process_btn and valid_configs:
+                groups = {}
+                for c in valid_configs:
+                    t = c['ticker']
+                    if t not in groups:
+                        groups[t] = {'sector': c['sector'], 'files': []}
+                    groups[t]['files'].append(c['file'])
+                    
                 pb = st.progress(0); st_txt = st.empty()
                 total_groups = len(groups)
                 
@@ -803,7 +1028,6 @@ with tabs[0]:
                     group_sector = data['sector']
                     
                     def upd(v, m): 
-                        # Scale local progress (v) to overall progress across all companies in batch
                         overall_v = (idx + v) / total_groups
                         pb.progress(min(overall_v, 1.0))
                         st_txt.markdown(f"<span style='color:#10b981; font-family:monospace;'>`[{overall_v*100:02.0f}%]` <b>[{ticker_name}]</b> {m}</span>", unsafe_allow_html=True)
@@ -819,33 +1043,21 @@ with tabs[0]:
                         b_dict = b.model_dump()
                         st.session_state.macro_db[ticker_name] = b_dict
                         st.session_state.macro_db[ticker_name]['sensitivity'] = {'rates': -0.2, 'inflation': -0.4, 'supply_chain': -0.1}
-                        # Persist to SQLite (Structured Data Pipeline)
                         persist_to_db(ticker_name, st.session_state.macro_db[ticker_name])
                         upd(1.0, "PROFILE GENERATED & PERSISTED TO SQL.")
                     else:
-                        st.error(f"❌ PIPELINE FAILED FOR [{ticker_name}]: The LLM could not generate a valid profile.")
+                        st.error(f"❌ PIPELINE FAILED FOR [{ticker_name}]")
                         
-                st.success(f"BULK INGESTION COMPLETE FOR {total_groups} ASSETS. Data persisted to nexus.db. SWITCH TO TAB [2] OR [5].")
-                st.markdown(f'<div style="font-size: 11px; color: #6b7280; font-family: monospace; margin-top: 4px;">📁 SQL Database: {DB_PATH}</div>', unsafe_allow_html=True)
+                st.success(f"BULK INGESTION COMPLETE FOR {total_groups} ASSETS.")
                 time.sleep(2.5)
                 st_txt.empty(); pb.empty()
 
-                st.markdown('</div>', unsafe_allow_html=True)
-
-        if st.button("🗑️ Clear Database & Reset Workflow"):
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.cursor().execute("DELETE FROM companies")
-                conn.commit()
-            st.session_state.clear()
-            st.rerun()
-            
-    else:
-        st.markdown('''
-        <div style="margin-top:20px; padding:20px; border:1px dashed #374151; border-radius:6px; text-align:center; color:#6b7280; font-size:13px;">
-            <b>Step 2: Metadata Mapping</b> will appear here automatically once you drop your PDFs above. 
-            <br>You will be able to assign tickers and sectors before executing the analysis.
-        </div>
-        ''', unsafe_allow_html=True)
+    if st.button("🗑️ Clear Database & Reset Workflow"):
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.cursor().execute("DELETE FROM companies")
+            conn.commit()
+        st.session_state.clear()
+        st.rerun()
 
 # --- TAB 2: TERMINAL ---
 with tabs[1]:

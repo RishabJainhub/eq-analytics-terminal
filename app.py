@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 import sqlite3
 import yfinance as yf
+import requests
+import urllib3
 from huggingface_hub import InferenceClient
 from pydantic import BaseModel, field_validator, Field
 from typing import List
@@ -393,6 +395,17 @@ class AnalystBrief(BaseModel):
 # BACKEND: INGESTION & LLM
 # ─────────────────────────────────────────────
 
+def get_yf_session():
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    session = requests.Session()
+    session.verify = False
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Connection": "keep-alive"
+    })
+    return session
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def resolve_ticker(query):
@@ -403,7 +416,7 @@ def resolve_ticker(query):
     
     # First, try as a direct ticker
     try:
-        tk = yf.Ticker(query.upper())
+        tk = yf.Ticker(query.upper(), session=get_yf_session())
         info = tk.info
         if info and info.get('regularMarketPrice') or info.get('marketCap'):
             return query.upper(), info.get('longName', query.upper())
@@ -434,7 +447,7 @@ def resolve_ticker(query):
 def fetch_company_context(ticker):
     """Pull comprehensive financial data from yfinance and format as context string."""
     try:
-        tk = yf.Ticker(ticker)
+        tk = yf.Ticker(ticker, session=get_yf_session())
         info = tk.info or {}
         
         # Validate we actually got data (yfinance sometimes returns empty or error dicts)
@@ -641,8 +654,8 @@ def build_sensitivity_table(fcf, wacc_base, g_base, years=5):
 
 def fetch_live_data(ticker):
     try:
-        tk = yf.Ticker(ticker)
-        info = tk.info
+        tk = yf.Ticker(ticker, session=get_yf_session())
+        info = tk.info or {}
         return {
             'price': info.get('currentPrice') or info.get('regularMarketPrice', 'N/A'),
             'market_cap': info.get('marketCap', 'N/A'),
@@ -677,7 +690,7 @@ class GRUModel(nn.Module):
 def run_gru_prediction(ticker, lookback=60, forecast_days=10, epochs=50):
     """Train a GRU on 1 year of daily closes and forecast forward."""
     try:
-        df = yf.download(ticker, period='1y', interval='1d', progress=False)
+        df = yf.download(ticker, period='1y', interval='1d', progress=False, session=get_yf_session())
         if df.empty or len(df) < lookback + 20:
             return None
         

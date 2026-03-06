@@ -817,6 +817,9 @@ def run_gru_prediction(ticker, lookback=60, forecast_days=10, epochs=50):
             'pred_price': round(pred_final, 2),
         }
     except Exception as e:
+        import traceback
+        error_msg = f"GRU Failed: {type(e).__name__} - {str(e)}\n{traceback.format_exc()}"
+        st.session_state["gru_last_error"] = error_msg
         return None
 
 def c_gru_forecast_chart(gru_data):
@@ -1182,6 +1185,7 @@ Enter any public ticker to generate an instant, comprehensive institutional anal
             conn.cursor().execute("DELETE FROM companies")
             conn.commit()
         st.session_state.clear()
+        st.cache_data.clear()
         st.rerun()
 
 # --- TAB 2: TERMINAL ---
@@ -1310,6 +1314,8 @@ with tabs[1]:
                     <span style="color: #6b7280;">⚠️ This is a demonstrator model for academic purposes. It does not constitute financial advice. Real trading signals require ensemble methods, external features, and rigorous backtesting.</span>
                 </div>
                 ''')
+        else:
+            st.error(st.session_state.get("gru_last_error", "GRU Model failed: Not enough historical data or Yahoo Finance network block."))
         
         # Dense Metric Grid
         st.html('<div class="metric-grid">')

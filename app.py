@@ -395,185 +395,199 @@ class AnalystBrief(BaseModel):
 # BACKEND: INGESTION & LLM
 # ─────────────────────────────────────────────
 
+import urllib.request
+import ssl
+
+_YF_SSL_CTX = ssl.create_default_context()
+_YF_SSL_CTX.check_hostname = False
+_YF_SSL_CTX.verify_mode = ssl.CERT_NONE
+_YF_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+
 def get_yf_session():
+    """Legacy helper — still used as fallback."""
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-    ]
-    
     session = requests.Session()
     session.verify = False
-    session.headers.update({
-        "User-Agent": random.choice(user_agents),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        "DNT": "1",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Cache-Control": "max-age=0"
-    })
+    session.headers.update({"User-Agent": _YF_UA})
     return session
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _get_yahoo_crumb():
+    """Fetch a valid Yahoo Finance cookie + crumb pair for API auth."""
+    try:
+        req1 = urllib.request.Request("https://fc.yahoo.com", headers={'User-Agent': _YF_UA})
+        cookie = ""
+        try:
+            with urllib.request.urlopen(req1, context=_YF_SSL_CTX, timeout=5): pass
+        except urllib.error.HTTPError as e:
+            sc = e.headers.get('Set-Cookie', '')
+            if sc: cookie = sc.split(';')[0]
+        except Exception:
+            pass
+        if not cookie:
+            return None, None
+        req2 = urllib.request.Request(
+            "https://query1.finance.yahoo.com/v1/test/getcrumb",
+            headers={'User-Agent': _YF_UA, 'Cookie': cookie}
+        )
+        with urllib.request.urlopen(req2, context=_YF_SSL_CTX, timeout=5) as r:
+            return cookie, r.read().decode()
+    except Exception:
+        return None, None
+
+def yahoo_api_request(url):
+    """Make an authenticated request to any Yahoo Finance API endpoint."""
+    req = urllib.request.Request(url, headers={'User-Agent': _YF_UA, 'Accept': '*/*'})
+    cookie, crumb = _get_yahoo_crumb()
+    if cookie:
+        req.add_header('Cookie', cookie)
+    with urllib.request.urlopen(req, context=_YF_SSL_CTX, timeout=10) as resp:
+        return json.loads(resp.read().decode())
+
+def yahoo_quote(ticker):
+    """Fetch full quote data for a ticker via v7/finance/quote with crumb auth."""
+    cookie, crumb = _get_yahoo_crumb()
+    if not cookie or not crumb:
+        return {}
+    url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={ticker}&crumb={crumb}"
+    req = urllib.request.Request(url, headers={'User-Agent': _YF_UA, 'Cookie': cookie})
+    with urllib.request.urlopen(req, context=_YF_SSL_CTX, timeout=10) as resp:
+        data = json.loads(resp.read().decode())
+    results = data.get('quoteResponse', {}).get('result', [])
+    return results[0] if results else {}
+
+def yahoo_chart(ticker, range_str='1y', interval='1d'):
+    """Fetch historical chart data for a ticker."""
+    url = f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?interval={interval}&range={range_str}"
+    req = urllib.request.Request(url, headers={'User-Agent': _YF_UA, 'Accept': '*/*'})
+    with urllib.request.urlopen(req, context=_YF_SSL_CTX, timeout=10) as resp:
+        return json.loads(resp.read().decode())
+
+def yahoo_search(query):
+    """Search for a ticker by company name."""
+    import urllib.parse
+    encoded = urllib.parse.quote(query)
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={encoded}&quotesCount=5&newsCount=0"
+    req = urllib.request.Request(url, headers={'User-Agent': _YF_UA, 'Accept': '*/*'})
+    with urllib.request.urlopen(req, context=_YF_SSL_CTX, timeout=10) as resp:
+        data = json.loads(resp.read().decode())
+    return data.get('quotes', [])
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def resolve_ticker(query):
-    """Resolve a company name or ticker to a valid ticker symbol using yfinance."""
+    """Resolve a company name or ticker to a valid ticker symbol."""
     query = query.strip()
     if not query:
         return None, None
     
-    # First, try as a direct ticker
+    # First, try as a direct ticker via quote API
     try:
-        tk = yf.Ticker(query.upper(), session=get_yf_session())
-        info = tk.info
-        if info and info.get('regularMarketPrice') or info.get('marketCap'):
-            return query.upper(), info.get('longName', query.upper())
+        info = yahoo_quote(query.upper())
+        if info and (info.get('regularMarketPrice') or info.get('marketCap')):
+            return query.upper(), info.get('longName') or info.get('shortName') or query.upper()
     except Exception:
         pass
     
-    # If that didn't work, search by name
+    # Search by name
     try:
-        results = yf.Search(query, max_results=5)
-        if hasattr(results, 'quotes') and results.quotes:
-            for q in results.quotes:
+        results = yahoo_search(query)
+        if results:
+            for q in results:
                 symbol = q.get('symbol', '')
                 name = q.get('longname') or q.get('shortname') or symbol
                 exchange = q.get('exchange', '')
-                # Prefer US exchanges
                 if exchange in ('NMS', 'NYQ', 'NGM', 'PCX', 'BTS', 'NAS'):
                     return symbol, name
-            # Fallback to first result
-            first = results.quotes[0]
+            first = results[0]
             return first.get('symbol', query.upper()), first.get('longname') or first.get('shortname') or query.upper()
     except Exception:
         pass
     
-    # Final fallback: return as-is (user typed a ticker we can't validate)
     return query.upper(), None
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_company_context(ticker):
-    """Pull comprehensive financial data from yfinance and format as context string."""
+    """Pull comprehensive financial data from Yahoo Finance APIs and format as context string."""
     try:
-        tk = yf.Ticker(ticker, session=get_yf_session())
-        info = tk.info or {}
+        # Primary: Use our crumb-authenticated v7 quote API
+        info = yahoo_quote(ticker)
         
-        # Validate we actually got data (yfinance sometimes returns empty or error dicts)
-        if not info or info.get('trailingPegRatio') is None and info.get('marketCap') is None and info.get('regularMarketPrice') is None:
-            # Try fast_info as fallback
-            try:
-                fi = tk.fast_info
-                if hasattr(fi, 'market_cap') and fi.market_cap:
-                    info['marketCap'] = fi.market_cap
-                    info['regularMarketPrice'] = getattr(fi, 'last_price', None)
-                    info['longName'] = ticker
-            except Exception:
-                pass
+        if not info or not (info.get('regularMarketPrice') or info.get('marketCap')):
+            return None, None, None
         
         # Basic info
-        name = info.get('longName', ticker)
+        name = info.get('longName') or info.get('shortName') or ticker
         sector = info.get('sector', 'Unknown')
         industry = info.get('industry', 'Unknown')
-        summary = info.get('longBusinessSummary', 'Not available')[:800]
+        summary = info.get('longBusinessSummary', 'Financial data retrieved from market feeds.')[:800]
         employees = info.get('fullTimeEmployees', 'N/A')
-        country = info.get('country', 'N/A')
+        country = info.get('country', 'N/A') if 'country' in info else 'N/A'
         
         ctx = f"COMPANY: {name} ({ticker})\n"
         ctx += f"SECTOR: {sector} | INDUSTRY: {industry}\n"
         ctx += f"COUNTRY: {country} | EMPLOYEES: {employees}\n\n"
         ctx += f"BUSINESS DESCRIPTION:\n{summary}\n\n"
         
-        # Key metrics
+        # Key metrics from quote data
         ctx += "KEY METRICS:\n"
         metrics = {
             'Market Cap': info.get('marketCap'),
-            'Revenue': info.get('totalRevenue'),
-            'Net Income': info.get('netIncomeToCommon'),
-            'EBITDA': info.get('ebitda'),
-            'Free Cash Flow': info.get('freeCashflow'),
-            'Operating Cash Flow': info.get('operatingCashflow'),
-            'Total Debt': info.get('totalDebt'),
-            'Total Cash': info.get('totalCash'),
+            'Revenue (TTM)': info.get('revenue'),
             'P/E Ratio': info.get('trailingPE'),
             'Forward P/E': info.get('forwardPE'),
-            'EV/EBITDA': info.get('enterpriseToEbitda'),
+            'EPS (TTM)': info.get('epsTrailingTwelveMonths'),
             'Price/Book': info.get('priceToBook'),
             'Profit Margin': info.get('profitMargins'),
-            'Operating Margin': info.get('operatingMargins'),
-            'ROE': info.get('returnOnEquity'),
-            'ROA': info.get('returnOnAssets'),
-            'Debt/Equity': info.get('debtToEquity'),
-            'Current Ratio': info.get('currentRatio'),
-            'Revenue Growth (YoY)': info.get('revenueGrowth'),
-            'Earnings Growth': info.get('earningsGrowth'),
             'Dividend Yield': info.get('dividendYield'),
             'Beta': info.get('beta'),
             '52-Week High': info.get('fiftyTwoWeekHigh'),
             '52-Week Low': info.get('fiftyTwoWeekLow'),
+            'Avg Volume': info.get('averageDailyVolume3Month'),
+            '50-Day MA': info.get('fiftyDayAverage'),
+            '200-Day MA': info.get('twoHundredDayAverage'),
+            'Shares Outstanding': info.get('sharesOutstanding'),
+            'Book Value': info.get('bookValue'),
         }
         for k, v in metrics.items():
             if v is not None:
-                if isinstance(v, float) and abs(v) < 1:
+                if isinstance(v, float) and 0 < abs(v) < 1:
                     ctx += f"  {k}: {v:.2%}\n"
                 elif isinstance(v, (int, float)) and abs(v) > 1e6:
                     ctx += f"  {k}: ${v/1e9:.2f}B\n" if abs(v) >= 1e9 else f"  {k}: ${v/1e6:.1f}M\n"
                 else:
                     ctx += f"  {k}: {v}\n"
         
-        # Financials (last 2 years)
-        try:
-            inc = tk.financials
-            if inc is not None and not inc.empty:
-                ctx += "\nINCOME STATEMENT (Last 2 Years):\n"
-                for col in inc.columns[:2]:
-                    yr = col.strftime('%Y') if hasattr(col, 'strftime') else str(col)
-                    ctx += f"  [{yr}]\n"
-                    for row in ['Total Revenue', 'Operating Income', 'Net Income', 'Gross Profit', 'EBITDA']:
-                        if row in inc.index:
-                            val = inc.loc[row, col]
-                            if pd.notna(val):
-                                ctx += f"    {row}: ${val/1e9:.2f}B\n"
-        except: pass
+        # Analyst targets from quote data
+        targets = {
+            'Target Mean': info.get('targetMeanPrice'),
+            'Target High': info.get('targetHighPrice'),
+            'Target Low': info.get('targetLowPrice'),
+            'Recommendation': info.get('recommendationKey'),
+            'Number of Analysts': info.get('numberOfAnalystOpinions'),
+        }
+        has_targets = any(v is not None for v in targets.values())
+        if has_targets:
+            ctx += "\nANALYST CONSENSUS:\n"
+            for k, v in targets.items():
+                if v is not None:
+                    ctx += f"  {k}: {v}\n"
         
-        # Cash flow highlights
+        # Supplement with historical price performance from chart API
         try:
-            cf = tk.cashflow
-            if cf is not None and not cf.empty:
-                ctx += "\nCASH FLOW HIGHLIGHTS:\n"
-                for col in cf.columns[:2]:
-                    yr = col.strftime('%Y') if hasattr(col, 'strftime') else str(col)
-                    ctx += f"  [{yr}]\n"
-                    for row in ['Operating Cash Flow', 'Free Cash Flow', 'Capital Expenditure']:
-                        if row in cf.index:
-                            val = cf.loc[row, col]
-                            if pd.notna(val):
-                                ctx += f"    {row}: ${val/1e9:.2f}B\n"
-        except: pass
-        
-        # Analyst targets
-        try:
-            targets = {
-                'Target Mean': info.get('targetMeanPrice'),
-                'Target High': info.get('targetHighPrice'),
-                'Target Low': info.get('targetLowPrice'),
-                'Recommendation': info.get('recommendationKey'),
-                'Number of Analysts': info.get('numberOfAnalystOpinions'),
-            }
-            has_targets = any(v is not None for v in targets.values())
-            if has_targets:
-                ctx += "\nANALYST CONSENSUS:\n"
-                for k, v in targets.items():
-                    if v is not None:
-                        ctx += f"  {k}: {v}\n"
-        except: pass
+            chart = yahoo_chart(ticker, range_str='1y')
+            result = chart.get('chart', {}).get('result', [])
+            if result:
+                closes_raw = result[0].get('indicators', {}).get('quote', [{}])[0].get('close', [])
+                valid = [c for c in closes_raw if c is not None]
+                if len(valid) > 20:
+                    ctx += f"\nPRICE PERFORMANCE:\n"
+                    ctx += f"  Current: ${valid[-1]:.2f}\n"
+                    ctx += f"  1-Year Ago: ${valid[0]:.2f}\n"
+                    ctx += f"  1-Year Return: {((valid[-1] - valid[0]) / valid[0] * 100):.1f}%\n"
+                    ctx += f"  1-Year High: ${max(valid):.2f}\n"
+                    ctx += f"  1-Year Low: ${min(valid):.2f}\n"
+        except Exception:
+            pass
         
         return name, sector, ctx
     except Exception as e:
@@ -668,72 +682,14 @@ def build_sensitivity_table(fcf, wacc_base, g_base, years=5):
     df = pd.DataFrame(rows, index=[f"WACC={w:.1%}" for w in wacc_steps])
     return df
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_yahoo_cookie_crumb():
-    import urllib.request
-    import ssl
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    
-    req1 = urllib.request.Request("https://fc.yahoo.com", headers={'User-Agent': user_agent})
-    cookie = ""
-    try:
-        with urllib.request.urlopen(req1, context=ctx, timeout=5): pass
-    except urllib.error.HTTPError as e:
-        set_cookie = e.headers.get('Set-Cookie', '')
-        if set_cookie: cookie = set_cookie.split(';')[0]
-    except Exception:
-        pass
-        
-    if not cookie: return None, None
-    
-    req2 = urllib.request.Request("https://query1.finance.yahoo.com/v1/test/getcrumb", headers={'User-Agent': user_agent, 'Cookie': cookie})
-    try:
-        with urllib.request.urlopen(req2, context=ctx, timeout=5) as res2:
-            return cookie, res2.read().decode()
-    except Exception:
-        return None, None
-
 def fetch_live_data(ticker):
+    """Fetch live market data for the dashboard metrics panel."""
     try:
-        import urllib.request
-        import ssl
-        import json
-        
-        cookie, crumb = get_yahoo_cookie_crumb()
-        
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        
-        # If crumb extraction succeeds, use the v7 robust endpoint
-        if cookie and crumb:
-            url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={ticker}&crumb={crumb}"
-            req = urllib.request.Request(url, headers={'User-Agent': user_agent, 'Cookie': cookie})
-            with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                res = data.get('quoteResponse', {}).get('result', [])
-                if res:
-                    info = res[0]
-                    return {
-                        'price': info.get('regularMarketPrice', 'N/A'),
-                        'market_cap': info.get('marketCap', 'N/A'),
-                        'pe_ratio': info.get('trailingPE', 'N/A'),
-                        'ev_ebitda': 'N/A', # quote endpoint doesn't typically serve EV/EBITDA but standard PE is there
-                        'week52_high': info.get('fiftyTwoWeekHigh', 'N/A'),
-                        'week52_low': info.get('fiftyTwoWeekLow', 'N/A'),
-                        'dividend_yield': info.get('dividendYield', 'N/A'),
-                        'beta': info.get('beta', 'N/A'),
-                    }
-                    
-        # Fallback to yfinance if crumb completely fails (e.g. local run works fine)
-        tk = yf.Ticker(ticker, session=get_yf_session())
-        info = tk.info or {}
+        info = yahoo_quote(ticker)
+        if not info:
+            return None
         return {
-            'price': info.get('currentPrice') or info.get('regularMarketPrice', 'N/A'),
+            'price': info.get('regularMarketPrice', 'N/A'),
             'market_cap': info.get('marketCap', 'N/A'),
             'pe_ratio': info.get('trailingPE', 'N/A'),
             'ev_ebitda': info.get('enterpriseToEbitda', 'N/A'),
@@ -766,48 +722,22 @@ class GRUModel(nn.Module):
 def run_gru_prediction(ticker, lookback=60, forecast_days=10, epochs=50):
     """Train a GRU on 1 year of daily closes and forecast forward."""
     try:
-        import urllib.request
-        import ssl
-        import json
-        import random
         import datetime
-        import time
         
-        url = f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1y"
-        
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        
-        user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0"
-        ]
-        
-        req = urllib.request.Request(url, headers={
-            'User-Agent': random.choice(user_agents),
-            'Accept': '*/*',
-            'Connection': 'keep-alive'
-        })
-        
-        with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            
+        # Use centralized chart API
+        data = yahoo_chart(ticker, range_str='1y', interval='1d')
         result = data.get('chart', {}).get('result', [])
         if not result:
-            raise ValueError(f"No result found for {ticker}")
-            
+            raise ValueError(f"No chart data for {ticker}")
+        
         timestamps = result[0].get('timestamp', [])
         closes_raw = result[0].get('indicators', {}).get('quote', [{}])[0].get('close', [])
         
-        # Filter out None values
         valid_data = [(ts, c) for ts, c in zip(timestamps, closes_raw) if c is not None]
         if len(valid_data) < lookback + 20:
-             raise ValueError("Insufficient trading days.")
-             
-        timestamps, closes_raw = zip(*valid_data)
+            raise ValueError("Insufficient trading days")
         
+        timestamps, closes_raw = zip(*valid_data)
         dates = [datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).date() for ts in timestamps]
         df = pd.DataFrame({'Close': closes_raw}, index=pd.DatetimeIndex(dates))
         

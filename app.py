@@ -228,18 +228,19 @@ div[data-baseweb="input"] input::placeholder {
     background: rgba(0,0,0,0.5) !important; color: #ffffff !important; 
     border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 12px !important;
     padding: 12px 16px !important; font-size: 15px !important; font-family: "Inter", sans-serif !important;
+    min-height: 48px !important;
 }
 .stTextInput>div>div>input:focus, .stSelectbox>div>div>div:focus {
     border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,0.2) !important;
 }
 
 /* Selectbox & Dropdown Full Override */
-div[data-baseweb="select"] { background: rgba(0,0,0,0.5) !important; border-radius: 12px !important; }
-div[data-baseweb="select"] > div { background: transparent !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 12px !important; }
-div[data-baseweb="select"] span { color: #ffffff !important; }
+div[data-baseweb="select"] { background: rgba(0,0,0,0.5) !important; border-radius: 12px !important; min-height: 48px !important;}
+div[data-baseweb="select"] > div { background: transparent !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 12px !important; min-height: 48px !important;}
+div[data-baseweb="select"] span { color: #ffffff !important; padding: 0 !important; font-size: 15px !important; }
 div[data-baseweb="select"] svg { fill: #ffffff !important; }
 ul[role="listbox"] { background: #0a0a0a !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 12px !important; }
-li[role="option"] { color: #ffffff !important; background: transparent !important; }
+li[role="option"] { color: #ffffff !important; background: transparent !important; padding: 12px 16px !important; }
 li[role="option"]:hover { background: rgba(255,255,255,0.08) !important; }
 li[role="option"][aria-selected="true"] { background: rgba(16,185,129,0.15) !important; }
 </style>''')

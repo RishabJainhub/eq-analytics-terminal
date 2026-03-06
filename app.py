@@ -668,8 +668,68 @@ def build_sensitivity_table(fcf, wacc_base, g_base, years=5):
     df = pd.DataFrame(rows, index=[f"WACC={w:.1%}" for w in wacc_steps])
     return df
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_yahoo_cookie_crumb():
+    import urllib.request
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    
+    req1 = urllib.request.Request("https://fc.yahoo.com", headers={'User-Agent': user_agent})
+    cookie = ""
+    try:
+        with urllib.request.urlopen(req1, context=ctx, timeout=5): pass
+    except urllib.error.HTTPError as e:
+        set_cookie = e.headers.get('Set-Cookie', '')
+        if set_cookie: cookie = set_cookie.split(';')[0]
+    except Exception:
+        pass
+        
+    if not cookie: return None, None
+    
+    req2 = urllib.request.Request("https://query1.finance.yahoo.com/v1/test/getcrumb", headers={'User-Agent': user_agent, 'Cookie': cookie})
+    try:
+        with urllib.request.urlopen(req2, context=ctx, timeout=5) as res2:
+            return cookie, res2.read().decode()
+    except Exception:
+        return None, None
+
 def fetch_live_data(ticker):
     try:
+        import urllib.request
+        import ssl
+        import json
+        
+        cookie, crumb = get_yahoo_cookie_crumb()
+        
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        
+        # If crumb extraction succeeds, use the v7 robust endpoint
+        if cookie and crumb:
+            url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={ticker}&crumb={crumb}"
+            req = urllib.request.Request(url, headers={'User-Agent': user_agent, 'Cookie': cookie})
+            with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
+                data = json.loads(response.read().decode())
+                res = data.get('quoteResponse', {}).get('result', [])
+                if res:
+                    info = res[0]
+                    return {
+                        'price': info.get('regularMarketPrice', 'N/A'),
+                        'market_cap': info.get('marketCap', 'N/A'),
+                        'pe_ratio': info.get('trailingPE', 'N/A'),
+                        'ev_ebitda': 'N/A', # quote endpoint doesn't typically serve EV/EBITDA but standard PE is there
+                        'week52_high': info.get('fiftyTwoWeekHigh', 'N/A'),
+                        'week52_low': info.get('fiftyTwoWeekLow', 'N/A'),
+                        'dividend_yield': info.get('dividendYield', 'N/A'),
+                        'beta': info.get('beta', 'N/A'),
+                    }
+                    
+        # Fallback to yfinance if crumb completely fails (e.g. local run works fine)
         tk = yf.Ticker(ticker, session=get_yf_session())
         info = tk.info or {}
         return {

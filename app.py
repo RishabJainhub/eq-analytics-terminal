@@ -706,33 +706,15 @@ class GRUModel(nn.Module):
 def run_gru_prediction(ticker, lookback=60, forecast_days=10, epochs=50):
     """Train a GRU on 1 year of daily closes and forecast forward."""
     try:
-        import time
-        import datetime
-        
-        # Calculate timestamps for exactly 1 year ago
-        end = int(time.time())
-        start = end - (365 * 24 * 60 * 60)
-        url = f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?period1={start}&period2={end}&interval=1d"
-        
-        res = get_yf_session().get(url, timeout=10)
-        data = res.json()
-        result = data.get("chart", {}).get("result", [])
-        
-        if not result:
-            return None
-            
-        timestamps = result[0].get("timestamp", [])
-        indicators = result[0].get("indicators", {}).get("quote", [{}])[0]
-        closes = indicators.get("close", [])
-        
-        # Build DataFrame ensuring exactly same structure
-        dates = [datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).date() for ts in timestamps]
-        df = pd.DataFrame({'Close': closes}, index=pd.DatetimeIndex(dates))
-        df = df.dropna()
+        # Use yfinance native history fetcher with stealth session
+        # This bypasses raw JSON endpoint blocks by automatically handling Yahoo's crumbs
+        tk = yf.Ticker(ticker, session=get_yf_session())
+        df = tk.history(period="1y", interval="1d")
         
         if df.empty or len(df) < lookback + 20:
             return None
         
+        # Ensure we only have the Close column as expected by downstream tensors
         closes = df['Close'].values.flatten().astype(float)
         
         # Normalize

@@ -429,11 +429,24 @@ def resolve_ticker(query):
     # Final fallback: return as-is (user typed a ticker we can't validate)
     return query.upper(), None
 
+@st.cache_data(ttl=900, show_spinner=False)
 def fetch_company_context(ticker):
     """Pull comprehensive financial data from yfinance and format as context string."""
     try:
         tk = yf.Ticker(ticker)
-        info = tk.info
+        info = tk.info or {}
+        
+        # Validate we actually got data (yfinance sometimes returns empty or error dicts)
+        if not info or info.get('trailingPegRatio') is None and info.get('marketCap') is None and info.get('regularMarketPrice') is None:
+            # Try fast_info as fallback
+            try:
+                fi = tk.fast_info
+                if hasattr(fi, 'market_cap') and fi.market_cap:
+                    info['marketCap'] = fi.market_cap
+                    info['regularMarketPrice'] = getattr(fi, 'last_price', None)
+                    info['longName'] = ticker
+            except Exception:
+                pass
         
         # Basic info
         name = info.get('longName', ticker)
@@ -1132,7 +1145,10 @@ with tabs[1]:
         ''')
     else:
         st.html('<div style="display:flex; justify-content:flex-end; margin-bottom: 24px;">')
-        target = st.selectbox("ACTIVE ASSET", list(st.session_state.briefs.keys()), key="t2_target", label_visibility="collapsed")
+        _t2_tickers = list(st.session_state.briefs.keys())
+        _t2_labels = [f"{st.session_state.briefs[t].company_name} ({t})" for t in _t2_tickers]
+        _t2_sel = st.selectbox("ACTIVE ASSET", _t2_labels, key="t2_target", label_visibility="collapsed")
+        target = _t2_tickers[_t2_labels.index(_t2_sel)] if _t2_sel in _t2_labels else _t2_tickers[0]
         st.html('</div>')
         b = st.session_state.briefs[target]
         
@@ -1336,7 +1352,10 @@ with tabs[2]:
         
         with t3_tabs[0]:
             st.info("Select a company to see its strengths and weaknesses visualized as a radar chart.")
-            target_t3 = st.selectbox("Select Target Company", list(st.session_state.macro_db.keys()), key="t3_target_single")
+            _t3_tickers = list(st.session_state.macro_db.keys())
+            _t3_labels = [f"{st.session_state.briefs[t].company_name} ({t})" if t in st.session_state.briefs else t for t in _t3_tickers]
+            _t3_sel = st.selectbox("Select Target Company", _t3_labels, key="t3_target_single")
+            target_t3 = _t3_tickers[_t3_labels.index(_t3_sel)] if _t3_sel in _t3_labels else _t3_tickers[0]
             
             # Build scores dict for the selected company
             v_data = st.session_state.macro_db[target_t3]
@@ -1455,7 +1474,10 @@ with tabs[3]:
         ''')
     else:
         st.html('<div style="display:flex; justify-content:flex-end; margin-bottom: 10px;">')
-        target_dcf = st.selectbox("ACTIVE ASSET", list(st.session_state.briefs.keys()), key="t4_target", label_visibility="collapsed")
+        _t4_tickers = list(st.session_state.briefs.keys())
+        _t4_labels = [f"{st.session_state.briefs[t].company_name} ({t})" for t in _t4_tickers]
+        _t4_sel = st.selectbox("ACTIVE ASSET", _t4_labels, key="t4_target", label_visibility="collapsed")
+        target_dcf = _t4_tickers[_t4_labels.index(_t4_sel)] if _t4_sel in _t4_labels else _t4_tickers[0]
         st.html('</div>')
         b = st.session_state.briefs[target_dcf]
         

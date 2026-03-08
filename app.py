@@ -542,6 +542,19 @@ def fetch_company_context(ticker):
         # Primary: Use our crumb-authenticated v7 quote API
         info = yahoo_quote(ticker)
         
+        # If rate limited (HTTP 429) or empty, fallback to robust yfinance library
+        if not info or not (info.get('regularMarketPrice') or info.get('marketCap')):
+            try:
+                import yfinance as yf
+                yt = yf.Ticker(ticker)
+                y_info = yt.info
+                if y_info and (y_info.get('currentPrice') or y_info.get('regularMarketPrice') or y_info.get('marketCap')):
+                    info = y_info
+                    if 'currentPrice' in info and 'regularMarketPrice' not in info:
+                        info['regularMarketPrice'] = info['currentPrice']
+            except Exception:
+                pass
+                
         if not info or not (info.get('regularMarketPrice') or info.get('marketCap')):
             return None, None, None
         

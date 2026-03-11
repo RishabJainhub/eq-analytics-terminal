@@ -1349,8 +1349,6 @@ with tabs[1]:
                 except (ValueError, TypeError):
                     return str(v)
             
-            st.warning(f"DEBUG LIVE OBJECT: {live}")
-            
             st.html(f'''
             <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
                 <div style="flex:1; min-width:140px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px; text-align:center; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">

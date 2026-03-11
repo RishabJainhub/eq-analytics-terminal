@@ -806,6 +806,34 @@ def fetch_live_data(ticker):
             except Exception as e:
                 print(f"Finviz Scraper Failed: {e}")
                 pass
+        
+        # Quaternary Fallback: yfinance library (handles Yahoo auth automatically, works for ALL tickers)
+        if not market_cap or str(market_cap) == 'N/A' or not pe_ratio or str(pe_ratio) == 'N/A' or str(beta) == 'N/A' or str(ev_ebitda) == 'N/A':
+            try:
+                import yfinance as yf
+                yticker = yf.Ticker(ticker)
+                yinfo = yticker.info
+                if yinfo:
+                    if not market_cap or str(market_cap) == 'N/A':
+                        v = yinfo.get('marketCap')
+                        if v: market_cap = v
+                    if not pe_ratio or str(pe_ratio) == 'N/A':
+                        v = yinfo.get('trailingPE') or yinfo.get('forwardPE')
+                        if v: pe_ratio = v
+                    if str(beta) == 'N/A':
+                        v = yinfo.get('beta')
+                        if v: beta = v
+                    if str(ev_ebitda) == 'N/A':
+                        ev = yinfo.get('enterpriseValue')
+                        ebitda = yinfo.get('ebitda')
+                        if ev and ebitda and ebitda != 0:
+                            ev_ebitda = round(ev / ebitda, 2)
+                        else:
+                            v = yinfo.get('enterpriseToEbitda')
+                            if v: ev_ebitda = v
+            except Exception as e:
+                print(f"yfinance Fallback Failed: {e}")
+                pass
                 
         return {
             'price': info.get('regularMarketPrice', 'N/A'),

@@ -783,6 +783,7 @@ def fetch_live_data(ticker):
                     html = html.decode('utf-8')
                     mcap_m = re.search(r'data-field=\"regularMarketCap\"[^>]*value=\"([^>]+)\"', html)
                     pe_m = re.search(r'data-field=\"trailingPE\"[^>]*value=\"([^>]+)\"', html)
+                    
                     if not mcap_m: mcap_m = re.search(r'>Market Cap.*?<fin-streamer[^>]*>([\d\.]+T?B?M?)', html)
                     if not pe_m: pe_m = re.search(r'>PE Ratio.*?<fin-streamer[^>]*>([\d\.]+)', html)
                     

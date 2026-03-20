@@ -9,11 +9,11 @@
   **Enterprise-Grade Equity Research M&A Dashboard powered by RAG, Llama-3.1, and Dynamic FAISS Indexing.**
 
   <p align="center">
-    <a href="https://github.com/khushi2704rj-sephora/eq-analytics-terminal"><img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
-    <a href="https://github.com/khushi2704rj-sephora/eq-analytics-terminal"><img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit"></a>
-    <a href="https://github.com/khushi2704rj-sephora/eq-analytics-terminal"><img src="https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black" alt="HuggingFace"></a>
-    <a href="https://github.com/khushi2704rj-sephora/eq-analytics-terminal"><img src="https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white" alt="LangChain"></a>
-    <a href="https://github.com/khushi2704rj-sephora/eq-analytics-terminal"><img src="https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white" alt="Plotly"></a>
+    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
+    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit"></a>
+    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black" alt="HuggingFace"></a>
+    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white" alt="LangChain"></a>
+    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white" alt="Plotly"></a>
   </p>
   
   <p align="center">
@@ -105,11 +105,11 @@ If you use this research, pipeline, or methodology in your academic work, please
 
 ```bibtex
 @software{nexus_terminal_2026,
-  author       = {Kothari, Khushi},
+  author       = {Jain, Rishab P},
   title        = {Nexus Equity Terminal: RAG-Powered AI Financial Analysis Platform},
   year         = {2026},
   publisher    = {GitHub},
-  url          = {https://github.com/khushi2704rj-sephora/eq-analytics-terminal}
+  url          = {https://github.com/RishabJainhub/eq-analytics-terminal}
 }
 ```
 
@@ -124,7 +124,7 @@ To run this terminal locally, ensure you have Python 3.10+ installed and a valid
 **1. Clone the repository:**
 
 ```bash
-git clone https://github.com/khushi2704rj-sephora/eq-analytics-terminal.git
+git clone https://github.com/RishabJainhub/eq-analytics-terminal.git
 cd eq-analytics-terminal
 ```
 
@@ -151,13 +151,15 @@ streamlit run app.py
 
 <div align="center">
 
-### 👩‍💻 Author
+### 👨‍💻 Author
 
-**Khushi Kothari**
+**Rishab P Jain**
 
-[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/khushi2704rj-sephora)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat-square&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/khushi-kothari--/)
-[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=flat-square&logo=gmail&logoColor=white)](mailto:khushi2704.ak@gmail.com)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/RishabJainhub)
+
+### 🤝 Contributors
+
+**Rishabjainhub**
 
 *MSc Business Analytics · Financial Modeling & Equity Research*
 

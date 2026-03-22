@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1218,50:1b2b50,100:3b83f6&height=221&section=header&text=Nexus%20Equity%20Terminal&fontSize=42&fontColor=ffffff&animation=twinkling&fontAlignY=35&desc=AI-Powered%20Financial%20Analysis%20%7C%20RAG%20Pipelines%20%7C%20GRU%20Deep%20Learning%20%7C%20DCF%20Valuation&descSize=16&descAlignY=55&descColor=cccccc" alt="Banner" width="100%">
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1218,50:4c1d95,100:8b5cf6&height=221&section=header&text=Nexus%20Equity%20Terminal&fontSize=42&fontColor=ffffff&animation=twinkling&fontAlignY=35&desc=AI-Powered%20Financial%20Analysis%20%7C%20RAG%20Pipelines%20%7C%20GRU%20Deep%20Learning%20%7C%20DCF%20Valuation&descSize=16&descAlignY=55&descColor=cccccc" alt="Banner" width="100%">
 
 </div>
 
@@ -8,24 +8,35 @@
 
   **Enterprise-Grade Equity Research M&A Dashboard powered by RAG, Llama-3.1, and Dynamic FAISS Indexing.**
 
-  <p align="center">
-    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
-    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit"></a>
-    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black" alt="HuggingFace"></a>
-    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white" alt="LangChain"></a>
-    <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white" alt="Plotly"></a>
-  </p>
+  <table style="width:100%; border-collapse: collapse; border: none; margin-top: 20px;">
+    <tr>
+      <td width="33%" align="center">
+        <img src="https://img.shields.io/badge/Meta_Llama_3-047ED6?style=for-the-badge&logo=meta&logoColor=white" /><br/>
+        <h4>Deep Learning</h4>
+        <p><b>PyTorch / Llama 3.1</b><br/>Inference & GRU modeling</p>
+      </td>
+      <td width="33%" align="center">
+        <img src="https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white" /><br/>
+        <h4>RAG Pipeline</h4>
+        <p><b>FAISS & MiniLM</b><br/>Semantic 10-K Retrieval</p>
+      </td>
+      <td width="33%" align="center">
+        <img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" /><br/>
+        <h4>Terminal UI</h4>
+        <p><b>Plotly & Streamlit</b><br/>Bloomberg-style Dashboard</p>
+      </td>
+    </tr>
+  </table>
   
-  <p align="center">
+  <p align="center" style="margin-top: 15px;">
     <a href="https://eq-analytics-terminal-ydszosnnq52xexcpanx8dz.streamlit.app/">
-      <img src="https://img.shields.io/badge/Live_Demo-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Live Demo">
+      <img src="https://img.shields.io/badge/Live_Demo-8B5CF6?style=for-the-badge&logo=streamlit&logoColor=white" alt="Live Demo">
     </a>
   </p>
 
   <p align="center">
-    <!-- Updated Demo Video -->
     <a href="https://eq-analytics-terminal-ydszosnnq52xexcpanx8dz.streamlit.app/">
-      <img src="demo.gif" alt="Nexus Terminal Demo Walkthrough" width="85%" style="border-radius: 12px; border: 1px solid #3b82f6; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);">
+      <img src="demo.gif" alt="Nexus Terminal Demo Walkthrough" width="85%" style="border-radius: 12px; border: 1px solid #7c3aed; box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);">
     </a>
   </p>
 </div>

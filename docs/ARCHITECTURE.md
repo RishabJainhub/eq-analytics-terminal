@@ -21,19 +21,45 @@ The application is built on a monolithic Streamlit backend that dynamically orch
 The core innovation of the terminal is transforming unstructured corporate filings into a strict, programmatic JSON schema.
 
 ```mermaid
-graph TD
-    A[Raw SEC 10-K PDF] -->|PyPDF2 Extraction| B[Raw Text Blob]
-    B -->|LangChain Splitter| C[Document Chunks]
-    C -->|all-MiniLM-L6-v2| D[(FAISS Vector DB)]
-    
-    E[User Query via App] -->|Similarity Search| D
-    D -->|Top 5 K-Neighbors Context| F[Prompt Construction]
-    F -->|System Prompt Template| G[Llama-3.1-8B-Instruct]
-    
-    G -->|Raw Text Output| H{Regex JSON Extractor}
-    H -->|Parses JSON block| I[Pydantic BaseModel Parsing]
-    I -->|Enforces Types, Lists, Bounds| J[AnalystBrief Object]
-    J -->|Rendered to UI| K[Terminal Dashboard]
+flowchart TD
+    subgraph INGESTION ["📥 Ingestion Layer"]
+        A[Raw SEC 10-K PDF] -->|PyPDF2 Extraction| B[Raw Text Blob]
+        B -->|LangChain Splitter| C[Document Chunks]
+    end
+
+    subgraph VECTOR ["🧩 Vector Generation"]
+        C -->|all-MiniLM-L6-v2| D[(FAISS Vector DB)]
+        E[User Query via App] -->|Similarity Search| D
+    end
+
+    subgraph INFERENCE ["🧠 Inference Layer"]
+        D -->|Top 5 Context| F[Prompt Construction]
+        F -->|System Prompt Template| G[Llama-3.1-8B-Instruct]
+        G -->|Raw Text Output| H{JSON Extractor}
+    end
+
+    subgraph UI ["📊 Presentation Layer"]
+        H -->|Parses JSON block| I[Pydantic BaseModel Parsing]
+        I -->|Enforces Types| J[AnalystBrief Object]
+        J -->|Rendered to UI| K[Terminal Dashboard]
+    end
+
+    style INGESTION fill:#0d1218,stroke:#4c1d95,color:#fff
+    style VECTOR fill:#0d1218,stroke:#1e3a5f,color:#fff
+    style INFERENCE fill:#0d1218,stroke:#7c3aed,color:#fff
+    style UI fill:#0d1218,stroke:#059669,color:#fff
+
+    style A fill:#1a1a2e,stroke:#4c1d95,color:#fff
+    style B fill:#1a1a2e,stroke:#4c1d95,color:#fff
+    style C fill:#1a1a2e,stroke:#4c1d95,color:#fff
+    style D fill:#1e3a5f,stroke:#4F46E5,color:#fff
+    style E fill:#1e3a5f,stroke:#4F46E5,color:#fff
+    style F fill:#2d1b3d,stroke:#7C3AED,color:#fff
+    style G fill:#2d1b3d,stroke:#7C3AED,color:#fff
+    style H fill:#2d1b3d,stroke:#7C3AED,color:#fff
+    style I fill:#1b3d2d,stroke:#059669,color:#fff
+    style J fill:#1b3d2d,stroke:#059669,color:#fff
+    style K fill:#1b3d2d,stroke:#059669,color:#fff
 ```
 
 ## 3. Quantitative Modeling Integration

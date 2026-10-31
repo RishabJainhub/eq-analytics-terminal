@@ -34,7 +34,7 @@ data = {
 df = pd.DataFrame(data)
 
 # Export to Excel
-output_path = "/Users/rishabpjain/Downloads/eq-analytics-terminal/UPI_Santhal_351_Responses.xlsx"
+output_path = "UPI_Santhal_351_Responses.xlsx"
 df.to_excel(output_path, index=False)
 
 print(f"Dataset successfully generated with shape: {df.shape}")

@@ -11,7 +11,7 @@
 If you discover a security vulnerability, please report it responsibly:
 
 1. **Do NOT** open a public issue
-2. Email the maintainer at **khushi2704.ak@gmail.com**
+2. Email the maintainer at **rishabprakashjain12@gmail.com**
 3. Include a detailed description of the vulnerability
 4. Allow up to 48 hours for an initial response
 

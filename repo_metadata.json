@@ -1,0 +1,14 @@
+{
+  "description": "AI-driven quantitative equity analysis terminal powered by LLaMA 3.1, PyTorch GRU neural networks, and FAISS RAG. Delivers multi-asset DCF valuation and algorithmic screening.",
+  "topics": [
+    "quantitative-finance",
+    "rag",
+    "llama3",
+    "pytorch",
+    "equity-research",
+    "streamlit",
+    "financial-analysis"
+  ],
+  "license": "MIT",
+  "default_branch": "main"
+}

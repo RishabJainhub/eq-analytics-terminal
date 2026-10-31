@@ -10,7 +10,7 @@ This guide covers running the Nexus Equity Terminal locally for development, and
 
 Clone the repository and navigate into it:
 ```bash
-git clone https://github.com/khushi2704rj-sephora/eq-analytics-terminal.git
+git clone https://github.com/RishabJainhub/eq-analytics-terminal.git
 cd eq-analytics-terminal
 ```
 

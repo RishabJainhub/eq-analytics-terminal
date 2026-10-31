@@ -9,6 +9,7 @@
   <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
   <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch"></a>
   <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Meta_LLaMA-3.1--8B-047ED6?style=for-the-badge&logo=meta&logoColor=white" alt="Meta LLaMA 3.1"></a>
+  <a href="https://huggingface.co/"><img src="https://img.shields.io/badge/Hugging_Face-Transformers-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black" alt="Hugging Face"></a>
   <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/Vector_Store-FAISS-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white" alt="FAISS"></a>
   <a href="https://github.com/RishabJainhub/eq-analytics-terminal"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License"></a>
 </p>
